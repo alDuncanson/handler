@@ -2,22 +2,31 @@
 
 [![CI](https://github.com/alDuncanson/handler/actions/workflows/ci.yml/badge.svg)](https://github.com/alDuncanson/handler/actions/workflows/ci.yml)
 
-Handler is an A2A protocol client TUI and CLI.
+An [A2A](https://a2a-protocol.org/latest/) Protocol client TUI and CLI.
 
 ![Handler TUI](./assets/handler-tui.png)
 
 ## Run
 
+This project is managed with [uv](https://docs.astral.sh/uv/), so you can run Handler in a temporary, isolated environment:
+
 ```bash
 uvx git+https://github.com/alDuncanson/handler
 ```
 
-## Install
+or, install it globally:
+
 ```bash
 uv tool install git+https://github.com/alDuncanson/handler
 ```
 
 ## Use
+
+Now you can use Handler:
+
+```bash
+handler
+```
 
 If you don't have an A2A server to connect to, Handler provides a reference implementation of an A2A server:
 
