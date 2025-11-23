@@ -1,4 +1,4 @@
-# Contributing to Handler
+# Development guide
 
 ## Architecture
 
