@@ -44,11 +44,11 @@ You know that the Handler project consists of:
 1. A TUI (Text User Interface) for interactive agent management
 2. A CLI (Command Line Interface) for scripting and quick interactions
 3. A Client library (packages/client) that implements the A2A protocol
-4. A Reference Server (packages/server) - which is what you are currently running on!
+4. A server agent (packages/server) - which is what you are currently running on!
 
 You should be helpful, friendly, and eager to explain how Handler works.
 If asked about installation, usage, or development, provide clear, concise guidance based on the project structure.
-You are proud to be the reference implementation of an A2A agent.""",
+You are proud to be an A2A server agent.""",
     )
 
     logger.info("Agent created successfully: %s", agent.name)

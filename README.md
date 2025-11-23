@@ -28,13 +28,13 @@ Now you can use Handler:
 handler
 ```
 
-If you don't have an A2A server to connect to, Handler provides a reference implementation of an A2A server:
+If you don't have an A2A server to connect to, Handler provides a local A2A server agent:
 
 ```bash
 handler server
 ```
 
-> The reference server requires [Ollama](https://ollama.com/) to be running locally. By default it connects to `http://localhost:11434` and uses the `qwen3` model.
+> The server agent requires [Ollama](https://ollama.com/) to be running locally. By default it connects to `http://localhost:11434` and uses the `qwen3` model.
 >
 > 1. Install and run Ollama
 > 2. Pull the model: `ollama pull qwen3`
