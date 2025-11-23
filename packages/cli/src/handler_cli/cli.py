@@ -197,7 +197,10 @@ def tui() -> None:
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--port", default=8000, help="Port to bind to")
 def server(host: str, port: int) -> None:
-    """Start the A2A server agent."""
+    """Start the A2A reference server backed by Ollama.
+
+    Requires Ollama to be running (default: http://localhost:11434) with the qwen3 model (configurable via OLLAMA_API_BASE and OLLAMA_MODEL).
+    """
     try:
         from handler_server.server import run_server
     except ImportError as e:

@@ -25,7 +25,11 @@ If you don't have an A2A server to connect to, Handler provides a reference impl
 handler server
 ```
 
-> At the moment, Handler only supports the Ollama inference backend running Qwen3 locally. I plan to add support for other inference backends
+> The reference server requires [Ollama](https://ollama.com/) to be running locally. By default it connects to `http://localhost:11434` and uses the `qwen3` model.
+>
+> 1. Install and run Ollama
+> 2. Pull the model: `ollama pull qwen3`
+> 3. (Optional) Configure via environment variables: `OLLAMA_API_BASE` and `OLLAMA_MODEL`
 
 ### TUI
 
