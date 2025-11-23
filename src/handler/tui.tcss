@@ -1,0 +1,184 @@
+Screen {
+    padding: 2 4;
+}
+
+#root-container {
+    border: round $primary;
+    height: 1fr;
+    layout: horizontal;
+    padding: 1 2;
+    background: $background;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+}
+
+#left-pane {
+    width: 1fr;
+    height: 1fr;
+    layout: vertical;
+}
+
+#right-pane {
+    width: 2fr;
+    height: 1fr;
+    layout: vertical;
+    margin-left: 1;
+}
+
+/* Panels - Cockpit Style */
+.panel {
+    border: round $secondary; /* Monochromatic border */
+    border-title-color: $accent;
+    background: $background; /* Blend into screen, distinct only by border */
+    padding: 1 2;
+}
+
+/* Highlight panel when focused */
+.panel:focus-within {
+    border: round $accent;
+    border-title-color: $accent;
+}
+
+#contact-container {
+    height: auto;
+}
+
+#agent-card-container {
+    height: 1fr;
+}
+
+#conversation-container {
+    height: 1fr;
+}
+
+#input-container {
+    height: auto;
+}
+
+/* Contact Panel Internal */
+Label.section-label {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#agent-url {
+    margin-bottom: 1;
+    background: $surface;
+    border: none;
+    height: 3; /* Standard height for input */
+    padding: 0 1;
+    content-align: left middle; /* Vertically center text */
+}
+
+.contact-buttons {
+    layout: horizontal;
+    height: auto;
+}
+
+/* Buttons - Flat & Thinner */
+Button {
+    border: none;
+    height: 3; /* Match input height */
+    min-width: 0;
+    background: $surface;
+    color: $text;
+    text-style: bold;
+    content-align: center middle;
+}
+
+Button:hover {
+    background: $primary;
+    color: $background;
+}
+
+.contact-buttons Button {
+    width: 1fr;
+    margin-right: 1;
+}
+
+.contact-buttons Button:last-of-type {
+    margin-right: 0;
+}
+
+#connect-btn {
+    color: $accent;
+}
+#disconnect-btn {
+    color: $error;
+}
+
+/* Agent Card Internal */
+#agent-info {
+    height: 1fr;
+    color: $text;
+}
+
+#view-full-card-btn {
+    width: 1fr;
+    margin-top: 1;
+}
+
+/* Input Panel Internal */
+#input-row {
+    height: auto;
+    align: left middle;
+}
+
+#message-input {
+    border: none;
+    height: 3; /* Match other inputs */
+    padding: 0 1;
+    background: $background;
+    width: 1fr;
+    content-align: left middle;
+}
+
+#send-btn {
+    width: auto;
+    min-width: 8;
+    margin-left: 1;
+    background: $primary;
+    color: $background;
+}
+
+/* Chat Panel */
+#chat {
+    height: 1fr;
+    scrollbar-size: 1 1;
+}
+
+Message {
+    margin-bottom: 1;
+    height: auto;
+}
+
+/* Custom Footer */
+CustomFooter {
+    height: auto;
+    margin-top: 1;
+    border: round $primary;
+    background: $background;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+    padding: 0 1;
+}
+
+CustomFooter .footer-buttons {
+    height: auto;
+    align: left middle;
+}
+
+CustomFooter Button {
+    height: 1;
+    border: none;
+    margin-right: 1;
+    background: transparent;
+    color: $text-muted;
+    min-width: 0;
+    padding: 0 1;
+}
+
+CustomFooter Button:hover {
+    color: $text;
+    background: $primary;
+}
