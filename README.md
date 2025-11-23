@@ -9,7 +9,7 @@ Handler is an A2A protocol client TUI and CLI.
 ## Run
 
 ```bash
-uvx git+https://github.com/alDuncanson/handler -- tui
+uvx git+https://github.com/alDuncanson/handler
 ```
 
 ## Install
@@ -24,6 +24,8 @@ If you don't have an A2A server to connect to, Handler provides a reference impl
 ```bash
 handler server
 ```
+
+> At the moment, Handler only supports the Ollama inference backend running Qwen3 locally. I plan to add support for other inference backends
 
 ### TUI
 
