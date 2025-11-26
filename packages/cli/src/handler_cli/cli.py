@@ -9,10 +9,16 @@ from handler_client import (
     fetch_agent_card,
     send_message_to_agent,
 )
-from handler_common import console, get_logger, setup_logging
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.syntax import Syntax
+from handler_common import (
+    console,
+    get_logger,
+    print_error,
+    print_json,
+    print_markdown,
+    print_panel,
+    setup_logging,
+)
+
 
 setup_logging(level="INFO")
 log = get_logger(__name__)
@@ -48,8 +54,7 @@ def card(agent_url: str, output: str) -> None:
                 card_data = await fetch_agent_card(agent_url, client)
 
                 if output == "json":
-                    json_str = card_data.model_dump_json(indent=2)
-                    console.print(Syntax(json_str, "json", theme="monokai"))
+                    print_json(card_data.model_dump_json(indent=2))
                 else:
                     title = f"[bold green]{card_data.name}[/bold green] [dim]({card_data.version})[/dim]"
                     content = f"[italic]{card_data.description}[/italic]\n\n[bold]URL:[/bold] {card_data.url}"
@@ -71,19 +76,17 @@ def card(agent_url: str, output: str) -> None:
                             )
                             content += f"\n• Push Notifications: {status}"
 
-                    console.print(Panel(content, title=title, expand=False))
+                    print_panel(content, title=title)
 
         except httpx.TimeoutException:
-            console.print("[error]Error: Request timed out[/error]")
+            print_error("Request timed out")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
-            console.print(
-                f"[error]Error: HTTP {e.response.status_code} - {e.response.text}[/error]"
-            )
+            print_error(f"HTTP {e.response.status_code} - {e.response.text}")
             raise click.Abort()
         except Exception as e:
             log.exception("Failed to fetch agent card")
-            console.print(f"[error]Error: {e}[/error]")
+            print_error(str(e))
             raise click.Abort()
 
     asyncio.run(fetch())
@@ -131,9 +134,7 @@ def send(
                 )
 
                 if output == "json":
-                    console.print(
-                        Syntax(json.dumps(response, indent=2), "json", theme="monokai")
-                    )
+                    print_json(json.dumps(response, indent=2))
                 else:
                     if not response:
                         text = "Error: No result in response"
@@ -149,21 +150,17 @@ def send(
 
                         text = "\n".join(t for t in texts if t) or "No text in response"
 
-                    console.print(
-                        Panel(Markdown(text), title="Response", border_style="green")
-                    )
+                    print_markdown(text, title="Response")
 
         except httpx.TimeoutException:
-            console.print("[error]Error: Request timed out[/error]")
+            print_error("Request timed out")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
-            console.print(
-                f"[error]Error: HTTP {e.response.status_code} - {e.response.text}[/error]"
-            )
+            print_error(f"HTTP {e.response.status_code} - {e.response.text}")
             raise click.Abort()
         except Exception as e:
             log.exception("Failed to send message")
-            console.print(f"[error]Error: {e}[/error]")
+            print_error(str(e))
             raise click.Abort()
 
     asyncio.run(send_msg())
@@ -178,8 +175,9 @@ def tui() -> None:
     try:
         from handler.tui import HandlerTUI
     except ImportError as e:
-        console.print(f"[error]Error: Failed to import TUI dependencies: {e}[/error]")
-        console.print("[warning]Make sure handler-tui is installed.[/warning]")
+        print_error(
+            f"Failed to import TUI dependencies: {e}\n\nMake sure handler-tui is installed."
+        )
         raise click.Abort()
 
     logging.getLogger().handlers = []
@@ -199,10 +197,9 @@ def server(host: str, port: int) -> None:
     try:
         from handler_server.server import run_server
     except ImportError as e:
-        console.print(
-            f"[error]Error: Failed to import server dependencies: {e}[/error]"
+        print_error(
+            f"Failed to import server dependencies: {e}\n\nMake sure handler-server is installed."
         )
-        console.print("[warning]Make sure handler-server is installed.[/warning]")
         raise click.Abort()
 
     run_server(host, port)
