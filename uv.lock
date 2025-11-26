@@ -13,6 +13,7 @@ members = [
     "handler-app",
     "handler-cli",
     "handler-client",
+    "handler-common",
     "handler-server",
 ]
 
@@ -1318,6 +1319,7 @@ source = { editable = "." }
 dependencies = [
     { name = "handler-cli" },
     { name = "handler-client" },
+    { name = "handler-common" },
     { name = "handler-server" },
     { name = "httpx" },
     { name = "textual" },
@@ -1336,6 +1338,7 @@ dev = [
 requires-dist = [
     { name = "handler-cli", editable = "packages/cli" },
     { name = "handler-client", editable = "packages/client" },
+    { name = "handler-common", editable = "packages/common" },
     { name = "handler-server", editable = "packages/server" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "textual", specifier = ">=0.47.0" },
@@ -1374,16 +1377,16 @@ source = { editable = "packages/cli" }
 dependencies = [
     { name = "click" },
     { name = "handler-client" },
+    { name = "handler-common" },
     { name = "httpx" },
-    { name = "rich" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "handler-client", editable = "packages/client" },
+    { name = "handler-common", editable = "packages/common" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "rich", specifier = ">=13.0.0" },
 ]
 
 [[package]]
@@ -1392,14 +1395,27 @@ version = "0.1.0"
 source = { editable = "packages/client" }
 dependencies = [
     { name = "a2a-sdk" },
+    { name = "handler-common" },
     { name = "httpx" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", specifier = ">=0.3.16" },
+    { name = "handler-common", editable = "packages/common" },
     { name = "httpx", specifier = ">=0.27.2" },
 ]
+
+[[package]]
+name = "handler-common"
+version = "0.1.0"
+source = { editable = "packages/common" }
+dependencies = [
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "rich", specifier = ">=13.0.0" }]
 
 [[package]]
 name = "handler-server"
@@ -1408,6 +1424,7 @@ source = { editable = "packages/server" }
 dependencies = [
     { name = "click" },
     { name = "google-adk" },
+    { name = "handler-common" },
     { name = "litellm" },
     { name = "python-dotenv" },
     { name = "uvicorn" },
@@ -1417,6 +1434,7 @@ dependencies = [
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "google-adk" },
+    { name = "handler-common", editable = "packages/common" },
     { name = "litellm" },
     { name = "python-dotenv" },
     { name = "uvicorn" },

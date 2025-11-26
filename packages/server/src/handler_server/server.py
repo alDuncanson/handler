@@ -1,4 +1,5 @@
-import logging
+"""Handler A2A server agent."""
+
 import os
 
 import click
@@ -7,12 +8,10 @@ from dotenv import load_dotenv
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents.llm_agent import Agent
 from google.adk.models.lite_llm import LiteLlm
+from handler_common import console, get_logger, setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+setup_logging(level="INFO", suppress_libs=["uvicorn", "google"])
+log = get_logger(__name__)
 
 
 def create_agent() -> Agent:
@@ -26,7 +25,11 @@ def create_agent() -> Agent:
     ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
     ollama_model = os.getenv("OLLAMA_MODEL", "qwen3")
 
-    logger.info("Creating agent with model: %s at %s", ollama_model, ollama_base)
+    log.info(
+        "Creating agent with model: [highlight]%s[/highlight] at [url]%s[/url]",
+        ollama_model,
+        ollama_base,
+    )
 
     model = LiteLlm(
         model=f"ollama_chat/{ollama_model}",
@@ -51,7 +54,9 @@ If asked about installation, usage, or development, provide clear, concise guida
 You are proud to be an A2A server agent.""",
     )
 
-    logger.info("Agent created successfully: %s", agent.name)
+    log.info(
+        "[success]Agent created successfully:[/success] [agent]%s[/agent]", agent.name
+    )
     return agent
 
 
@@ -62,7 +67,10 @@ def run_server(host: str, port: int) -> None:
         host: Host address to bind to
         port: Port number to bind to
     """
-    logger.info("Starting Handler test server on %s:%s", host, port)
+    console.print(
+        f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
+    )
+    log.info("Initializing A2A server...")
     agent = create_agent()
     a2a_app = to_a2a(agent, host=host, port=port)
     uvicorn.run(a2a_app, host=host, port=port)

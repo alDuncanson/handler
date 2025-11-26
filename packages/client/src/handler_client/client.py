@@ -1,4 +1,5 @@
-import logging
+"""A2A protocol client utilities."""
+
 import uuid
 from typing import Any
 
@@ -12,8 +13,9 @@ from a2a.types import (
     TextPart,
     TransportProtocol,
 )
+from handler_common import get_logger
 
-logger = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 TIMEOUT = 120
 
@@ -43,10 +45,10 @@ async def fetch_agent_card(agent_url: str, client: httpx.AsyncClient) -> AgentCa
     Raises:
         httpx.RequestError: If the request fails
     """
-    logger.info("Fetching agent card from %s", agent_url)
+    log.info("Fetching agent card from [url]%s[/url]", agent_url)
     resolver = A2ACardResolver(client, agent_url)
     card = await resolver.get_agent_card()
-    logger.info("Received card for %s", card.name)
+    log.info("Received card for [agent]%s[/agent]", card.name)
     return card
 
 
@@ -97,9 +99,9 @@ async def send_message_to_agent(
         httpx.RequestError: If the request fails
         httpx.TimeoutException: If the request times out
     """
-    logger.info("Sending message to %s: %s", agent_url, message_text[:50])
+    log.info("Sending message to [url]%s[/url]: %s", agent_url, message_text[:50])
     card = await fetch_agent_card(agent_url, client)
-    logger.debug("Connected to %s", card.name)
+    log.debug("Connected to [agent]%s[/agent]", card.name)
 
     config = ClientConfig(
         httpx_client=client, supported_transports=[TransportProtocol.jsonrpc]
@@ -109,13 +111,13 @@ async def send_message_to_agent(
 
     message = _build_message(message_text, context_id, task_id)
 
-    logger.debug("Sending request with ID: %s", message.message_id)
+    log.debug("Sending request with ID: %s", message.message_id)
 
     last_response = None
     async for response in a2a_client.send_message(message):
         last_response = response
 
-    logger.debug("Received response")
+    log.debug("Received response")
 
     if last_response is None:
         return {}

@@ -7,6 +7,7 @@ dependencies = [
     "handler-cli",
     "handler-server",
     "handler-client",
+    "handler-common",
     "textual>=0.47.0",
     "httpx>=0.27.0",
 ]
@@ -34,3 +35,4 @@ build-backend = "hatchling.build"
 handler-cli = { workspace = true }
 handler-server = { workspace = true }
 handler-client = { workspace = true }
+handler-common = { workspace = true }

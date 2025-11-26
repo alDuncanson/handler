@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import Optional
 
 import click
@@ -10,18 +9,13 @@ from handler_client import (
     fetch_agent_card,
     send_message_to_agent,
 )
-from rich.console import Console
+from handler_common import console, get_logger, setup_logging
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-console = Console()
+setup_logging(level="INFO")
+log = get_logger(__name__)
 
 
 @click.group()
@@ -80,16 +74,16 @@ def card(agent_url: str, output: str) -> None:
                     console.print(Panel(content, title=title, expand=False))
 
         except httpx.TimeoutException:
-            console.print("[red]Error: Request timed out[/red]")
+            console.print("[error]Error: Request timed out[/error]")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
             console.print(
-                f"[red]Error: HTTP {e.response.status_code} - {e.response.text}[/red]"
+                f"[error]Error: HTTP {e.response.status_code} - {e.response.text}[/error]"
             )
             raise click.Abort()
         except Exception as e:
-            logger.error("Failed to fetch agent card: %s", e, exc_info=True)
-            console.print(f"[red]Error: {e}[/red]")
+            log.exception("Failed to fetch agent card")
+            console.print(f"[error]Error: {e}[/error]")
             raise click.Abort()
 
     asyncio.run(fetch())
@@ -127,7 +121,7 @@ def send(
     async def send_msg() -> None:
         try:
             async with build_http_client() as client:
-                logger.debug("Sending message to %s", agent_url)
+                log.debug("Sending message to %s", agent_url)
 
                 if output == "text":
                     console.print(f"[dim]Sending message to {agent_url}...[/dim]")
@@ -160,16 +154,16 @@ def send(
                     )
 
         except httpx.TimeoutException:
-            console.print("[red]Error: Request timed out[/red]")
+            console.print("[error]Error: Request timed out[/error]")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
             console.print(
-                f"[red]Error: HTTP {e.response.status_code} - {e.response.text}[/red]"
+                f"[error]Error: HTTP {e.response.status_code} - {e.response.text}[/error]"
             )
             raise click.Abort()
         except Exception as e:
-            logger.error("Failed to send message: %s", e, exc_info=True)
-            console.print(f"[red]Error: {e}[/red]")
+            log.exception("Failed to send message")
+            console.print(f"[error]Error: {e}[/error]")
             raise click.Abort()
 
     asyncio.run(send_msg())
@@ -178,15 +172,16 @@ def send(
 @cli.command()
 def tui() -> None:
     """Launch the Handler TUI interface."""
-    logger.info("Launching TUI")
+    import logging
+
+    log.info("Launching TUI")
     try:
         from handler.tui import HandlerTUI
     except ImportError as e:
-        console.print(f"[red]Error: Failed to import TUI dependencies: {e}[/red]")
-        console.print("[yellow]Make sure handler-tui is installed.[/yellow]")
+        console.print(f"[error]Error: Failed to import TUI dependencies: {e}[/error]")
+        console.print("[warning]Make sure handler-tui is installed.[/warning]")
         raise click.Abort()
 
-    # Remove existing handlers to prevent printing to stdout/stderr over the TUI
     logging.getLogger().handlers = []
 
     app = HandlerTUI()
@@ -204,8 +199,10 @@ def server(host: str, port: int) -> None:
     try:
         from handler_server.server import run_server
     except ImportError as e:
-        console.print(f"[red]Error: Failed to import server dependencies: {e}[/red]")
-        console.print("[yellow]Make sure handler-server is installed.[/yellow]")
+        console.print(
+            f"[error]Error: Failed to import server dependencies: {e}[/error]"
+        )
+        console.print("[warning]Make sure handler-server is installed.[/warning]")
         raise click.Abort()
 
     run_server(host, port)

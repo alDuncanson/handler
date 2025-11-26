@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Handler reference agent server"
 requires-python = ">=3.11"
 dependencies = [
+    "handler-common",
     "google-adk",
     "python-dotenv",
     "litellm",
