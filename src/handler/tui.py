@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -10,12 +11,25 @@ from handler_client import (
     fetch_agent_card,
     send_message_to_agent,
 )
+from rich.syntax import Syntax
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.logging import TextualHandler
-from textual.widgets import Button, Input, Label, Pretty, Static, TabbedContent, TabPane
+from textual.widgets import Button, Input, Label, Static, TabbedContent, TabPane
+
+TEXTUAL_TO_SYNTAX_THEME: dict[str, str] = {
+    "gruvbox": "gruvbox-dark",
+    "nord": "nord",
+    "tokyo-night": "monokai",
+    "textual-dark": "monokai",
+    "textual-light": "default",
+    "solarized-light": "solarized-light",
+    "dracula": "dracula",
+    "catppuccin-mocha": "monokai",
+    "monokai": "monokai",
+}
 
 logging.basicConfig(
     level="NOTSET",
@@ -110,6 +124,23 @@ class HandlerTUI(App[Any]):
         self.context_id: Optional[str] = None
         self.agent_url: Optional[str] = None
 
+    def _get_syntax_theme(self) -> str:
+        """Get the Rich Syntax theme name for the current app theme."""
+        return TEXTUAL_TO_SYNTAX_THEME.get(self.theme or "", "monokai")
+
+    def _refresh_agent_raw(self) -> None:
+        """Refresh the raw agent card display with current syntax theme."""
+        if self.agent_card is None:
+            return
+        agent_raw = self.query_one("#agent-raw", Static)
+        json_str = json.dumps(self.agent_card.model_dump(), indent=2, default=str)
+        agent_raw.update(Syntax(json_str, "json", theme=self._get_syntax_theme()))
+
+    def watch_theme(self, theme: str) -> None:
+        """Called when the app theme changes."""
+        logger.debug("Theme changed to: %s", theme)
+        self._refresh_agent_raw()
+
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
         with Container(id="root-container"):
@@ -134,7 +165,7 @@ class HandlerTUI(App[Any]):
                         with TabPane("Pretty", id="pretty-tab"):
                             yield Static("Not connected", id="agent-info")
                         with TabPane("Raw", id="raw-tab"):
-                            yield Pretty({}, id="agent-raw")
+                            yield Static("", id="agent-raw")
 
             with Vertical(id="right-pane"):
                 with Container(id="conversation-container", classes="panel"):
@@ -216,8 +247,9 @@ class HandlerTUI(App[Any]):
         agent_info = self.query_one("#agent-info", Static)
         agent_info.update(info_text)
 
-        agent_raw = self.query_one("#agent-raw", Pretty)
-        agent_raw.update(card.model_dump())
+        agent_raw = self.query_one("#agent-raw", Static)
+        json_str = json.dumps(card.model_dump(), indent=2, default=str)
+        agent_raw.update(Syntax(json_str, "json", theme=self._get_syntax_theme()))
 
         self.query_one("#agent-card-container", Container).border_subtitle = "ACTIVE"
         self.query_one(
@@ -235,8 +267,8 @@ class HandlerTUI(App[Any]):
         agent_info = self.query_one("#agent-info", Static)
         agent_info.update("Not connected")
 
-        agent_raw = self.query_one("#agent-raw", Pretty)
-        agent_raw.update({})
+        agent_raw = self.query_one("#agent-raw", Static)
+        agent_raw.update("")
 
         self.query_one("#agent-card-container", Container).border_subtitle = "READY"
 
