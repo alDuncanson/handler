@@ -115,6 +115,10 @@ class HandlerTUI(App[Any]):
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("ctrl+c", "clear_chat", "Clear", show=True),
         Binding("ctrl+p", "command_palette", "Palette", show=True),
+        Binding("h", "prev_tab", "Prev Tab", show=False),
+        Binding("l", "next_tab", "Next Tab", show=False),
+        Binding("j", "scroll_down", "Scroll Down", show=False),
+        Binding("k", "scroll_up", "Scroll Up", show=False),
     ]
 
     def __init__(self, **kwargs):
@@ -165,7 +169,9 @@ class HandlerTUI(App[Any]):
                         with TabPane("Pretty", id="pretty-tab"):
                             yield Static("Not connected", id="agent-info")
                         with TabPane("Raw", id="raw-tab"):
-                            yield Static("", id="agent-raw")
+                            yield VerticalScroll(
+                                Static("", id="agent-raw"), id="raw-scroll"
+                            )
 
             with Vertical(id="right-pane"):
                 with Container(id="conversation-container", classes="panel"):
@@ -399,6 +405,42 @@ class HandlerTUI(App[Any]):
         chat = self.query_one("#chat", ChatPanel)
         await chat.remove_children()
         chat.add_system_message("Chat cleared")
+
+    def action_prev_tab(self) -> None:
+        """Switch to the previous tab in TabbedContent."""
+        try:
+            tabs = self.query_one("#agent-card-tabs", TabbedContent)
+            tabs.action_previous_tab()
+        except Exception:
+            pass
+
+    def action_next_tab(self) -> None:
+        """Switch to the next tab in TabbedContent."""
+        try:
+            tabs = self.query_one("#agent-card-tabs", TabbedContent)
+            tabs.action_next_tab()
+        except Exception:
+            pass
+
+    def action_scroll_down(self) -> None:
+        """Scroll down in the focused scrollable area."""
+        focused = self.focused
+        if focused is None:
+            return
+        for widget in [focused, *focused.ancestors]:
+            if isinstance(widget, VerticalScroll):
+                widget.scroll_down()
+                return
+
+    def action_scroll_up(self) -> None:
+        """Scroll up in the focused scrollable area."""
+        focused = self.focused
+        if focused is None:
+            return
+        for widget in [focused, *focused.ancestors]:
+            if isinstance(widget, VerticalScroll):
+                widget.scroll_up()
+                return
 
     async def on_unmount(self) -> None:
         """Cleanup when app closes."""
