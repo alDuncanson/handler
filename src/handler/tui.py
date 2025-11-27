@@ -17,7 +17,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.logging import TextualHandler
-from textual.widgets import Button, Input, Label, Static, TabbedContent, TabPane
+from textual.widgets import Button, Input, Label, Static, TabbedContent, TabPane, Tabs
 
 TEXTUAL_TO_SYNTAX_THEME: dict[str, str] = {
     "gruvbox": "gruvbox-dark",
@@ -409,7 +409,7 @@ class HandlerTUI(App[Any]):
     def action_prev_tab(self) -> None:
         """Switch to the previous tab in TabbedContent."""
         try:
-            tabs = self.query_one("#agent-card-tabs", TabbedContent)
+            tabs = self.query_one("#agent-card-tabs Tabs", Tabs)
             tabs.action_previous_tab()
         except Exception:
             pass
@@ -417,7 +417,7 @@ class HandlerTUI(App[Any]):
     def action_next_tab(self) -> None:
         """Switch to the next tab in TabbedContent."""
         try:
-            tabs = self.query_one("#agent-card-tabs", TabbedContent)
+            tabs = self.query_one("#agent-card-tabs Tabs", Tabs)
             tabs.action_next_tab()
         except Exception:
             pass
