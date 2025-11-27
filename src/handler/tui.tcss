@@ -108,14 +108,27 @@ Button:hover {
 }
 
 /* Agent Card Internal */
-#agent-info {
+#agent-card-tabs {
     height: 1fr;
+}
+
+#agent-card-tabs ContentSwitcher {
+    height: 1fr;
+}
+
+#agent-card-tabs TabPane {
+    height: 1fr;
+    overflow-y: auto;
+}
+
+#agent-info {
+    height: auto;
     color: $text;
 }
 
-#view-full-card-btn {
-    width: 1fr;
-    margin-top: 1;
+#agent-raw {
+    height: auto;
+    color: $text;
 }
 
 /* Input Panel Internal */

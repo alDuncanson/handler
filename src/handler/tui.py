@@ -15,7 +15,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.logging import TextualHandler
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Input, Label, Pretty, Static, TabbedContent, TabPane
 
 logging.basicConfig(
     level="NOTSET",
@@ -130,8 +130,11 @@ class HandlerTUI(App[Any]):
                         )
 
                 with Container(id="agent-card-container", classes="panel"):
-                    yield Static("Not connected", id="agent-info")
-                    yield Button("VIEW FULL CARD", id="view-full-card-btn")
+                    with TabbedContent(id="agent-card-tabs"):
+                        with TabPane("Pretty", id="pretty-tab"):
+                            yield Static("Not connected", id="agent-info")
+                        with TabPane("Raw", id="raw-tab"):
+                            yield Pretty({}, id="agent-raw")
 
             with Vertical(id="right-pane"):
                 with Container(id="conversation-container", classes="panel"):
@@ -205,13 +208,16 @@ class HandlerTUI(App[Any]):
 
         info_text += "[bold]CAPABILITIES[/]\n"
         if card.skills:
-            for skill in card.skills[:4]:  # Limit to avoid overflow if many
+            for skill in card.skills[:4]:
                 info_text += f"• {skill.name}\n"
         else:
             info_text += "• None listed\n"
 
         agent_info = self.query_one("#agent-info", Static)
         agent_info.update(info_text)
+
+        agent_raw = self.query_one("#agent-raw", Pretty)
+        agent_raw.update(card.model_dump())
 
         self.query_one("#agent-card-container", Container).border_subtitle = "ACTIVE"
         self.query_one(
@@ -228,6 +234,9 @@ class HandlerTUI(App[Any]):
 
         agent_info = self.query_one("#agent-info", Static)
         agent_info.update("Not connected")
+
+        agent_raw = self.query_one("#agent-raw", Pretty)
+        agent_raw.update({})
 
         self.query_one("#agent-card-container", Container).border_subtitle = "READY"
 
