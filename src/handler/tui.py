@@ -55,18 +55,12 @@ class Message(Vertical):
 
     def compose(self) -> ComposeResult:
         time_str = self.timestamp.strftime("%H:%M:%S")
+
         if self.role == "system":
             yield Static(f"[dim]{time_str}[/dim] [italic]{self.text}[/italic]")
         else:
-            role_label = "YOU" if self.role == "user" else "AGENT"
             role_color = "#88c0d0" if self.role == "agent" else "#bf616a"
-
-            content = (
-                f"[dim]{time_str}[/dim] "
-                f"[{role_color}][bold][{role_label}][/bold][/] "
-                f"{self.text}"
-            )
-            yield Static(content)
+            yield Static(f"[dim]{time_str}[/dim] [{role_color}]{self.text}[/]")
 
 
 class ChatPanel(VerticalScroll):
