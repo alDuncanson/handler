@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Optional
@@ -160,8 +161,15 @@ class HandlerTUI(App[Any]):
 
                 with Container(id="agent-card-container", classes="panel"):
                     with TabbedContent(id="agent-card-tabs"):
-                        with TabPane("Pretty", id="pretty-tab"):
-                            yield Static("Not connected", id="agent-info")
+                        with TabPane("Short", id="short-tab"):
+                            yield VerticalScroll(
+                                Static("Not connected", id="agent-short"),
+                                id="short-scroll",
+                            )
+                        with TabPane("Long", id="long-tab"):
+                            yield VerticalScroll(
+                                Static("", id="agent-long"), id="long-scroll"
+                            )
                         with TabPane("Raw", id="raw-tab"):
                             yield VerticalScroll(
                                 Static("", id="agent-raw"), id="raw-scroll"
@@ -229,23 +237,108 @@ class HandlerTUI(App[Any]):
         logger.info("Connecting to agent at %s", agent_url)
         return await fetch_agent_card(agent_url, self.http_client)
 
+    def _format_key(self, key: str) -> str:
+        """Convert a key to sentence case."""
+        spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", key)
+        return spaced.replace("_", " ").capitalize()
+
+    def _is_empty(self, value: Any) -> bool:
+        """Check if a value is truly empty, including nested structures."""
+        if value is None:
+            return True
+        if isinstance(value, (str, list, dict)) and not value:
+            return True
+        if hasattr(value, "model_dump"):
+            return self._is_empty(value.model_dump())
+        if isinstance(value, dict):
+            return all(self._is_empty(v) for v in value.values())
+        if isinstance(value, list):
+            return all(self._is_empty(item) for item in value)
+        return False
+
+    def _format_value(self, value: Any, indent: int = 0) -> str:
+        """Format a value for display."""
+        prefix = "  " * indent
+        if isinstance(value, list):
+            if not value:
+                return ""
+            lines = []
+            for item in value:
+                if hasattr(item, "model_dump"):
+                    item_dict = item.model_dump()
+                    name = item_dict.get("name", str(item))
+                    lines.append(f"{prefix}• {name}")
+                elif isinstance(item, dict):
+                    name = item.get("name", str(item))
+                    lines.append(f"{prefix}• {name}")
+                else:
+                    lines.append(f"{prefix}• {item}")
+            return "\n".join(lines)
+        elif hasattr(value, "model_dump"):
+            return self._format_value(value.model_dump(), indent)
+        elif isinstance(value, dict):
+            lines = []
+            for k, v in value.items():
+                if v:
+                    lines.append(f"{prefix}{self._format_key(k)}: {v}")
+            return "\n".join(lines)
+        else:
+            return str(value)
+
+    def _build_short_view(self, card: AgentCard) -> str:
+        """Build the short view with most relevant A2A fields."""
+        card_dict = card.model_dump()
+        lines = []
+
+        short_fields = [
+            "name",
+            "description",
+            "url",
+            "version",
+            "skills",
+            "capabilities",
+        ]
+
+        for key in short_fields:
+            value = card_dict.get(key)
+            if self._is_empty(value):
+                continue
+            formatted_key = self._format_key(key)
+            if isinstance(value, (list, dict)):
+                lines.append(f"[bold]{formatted_key}[/]")
+                lines.append(self._format_value(value, indent=1))
+            else:
+                lines.append(f"[bold]{formatted_key}:[/] {value}")
+
+        return "\n".join(lines)
+
+    def _build_long_view(self, card: AgentCard) -> str:
+        """Build the long view with all non-empty fields."""
+        card_dict = card.model_dump()
+        lines = []
+
+        for key, value in card_dict.items():
+            if self._is_empty(value):
+                continue
+            formatted_key = self._format_key(key)
+            if isinstance(value, (list, dict)):
+                lines.append(f"[bold]{formatted_key}[/]")
+                lines.append(self._format_value(value, indent=1))
+            else:
+                lines.append(f"[bold]{formatted_key}:[/] {value}")
+
+        return "\n".join(lines)
+
     def _update_ui_connected(self, card: AgentCard) -> None:
         """Update UI to reflect connected state."""
         root = self.query_one("#root-container", Container)
         root.border_title = f"Handler 0.1.0 [green]●[/green] Connected: {card.name}"
 
-        info_text = f"[bold visible]{card.name.upper()}[/]\n"
-        info_text += f"[dim]{card.description}[/]\n\n"
+        agent_short = self.query_one("#agent-short", Static)
+        agent_short.update(self._build_short_view(card))
 
-        info_text += "[bold]CAPABILITIES[/]\n"
-        if card.skills:
-            for skill in card.skills[:4]:
-                info_text += f"• {skill.name}\n"
-        else:
-            info_text += "• None listed\n"
-
-        agent_info = self.query_one("#agent-info", Static)
-        agent_info.update(info_text)
+        agent_long = self.query_one("#agent-long", Static)
+        agent_long.update(self._build_long_view(card))
 
         agent_raw = self.query_one("#agent-raw", Static)
         json_str = json.dumps(card.model_dump(), indent=2, default=str)
@@ -264,8 +357,11 @@ class HandlerTUI(App[Any]):
         root = self.query_one("#root-container", Container)
         root.border_title = "Handler 0.1.0 [red]●[/red] Disconnected"
 
-        agent_info = self.query_one("#agent-info", Static)
-        agent_info.update("Not connected")
+        agent_short = self.query_one("#agent-short", Static)
+        agent_short.update("Not connected")
+
+        agent_long = self.query_one("#agent-long", Static)
+        agent_long.update("")
 
         agent_raw = self.query_one("#agent-raw", Static)
         agent_raw.update("")
