@@ -47,7 +47,7 @@ Screen {
     height: 1fr;
 }
 
-#conversation-container {
+#messages-container {
     height: 1fr;
 }
 
@@ -171,7 +171,7 @@ Message {
 }
 
 /* Custom Footer */
-CustomFooter {
+Footer {
     height: auto;
     margin-top: 1;
     border: round $primary;
@@ -181,12 +181,12 @@ CustomFooter {
     padding: 0 1;
 }
 
-CustomFooter .footer-buttons {
+Footer .footer-buttons {
     height: auto;
     align: left middle;
 }
 
-CustomFooter Button {
+Footer Button {
     height: 1;
     border: none;
     margin-right: 1;
@@ -196,7 +196,16 @@ CustomFooter Button {
     padding: 0 1;
 }
 
-CustomFooter Button:hover {
+Footer Button:hover {
     color: $text;
     background: $primary;
+}
+
+/* Focusable panel containers */
+AgentCardPanel:focus {
+    border: round $accent;
+}
+
+MessagesPanel:focus {
+    border: round $accent;
 }
