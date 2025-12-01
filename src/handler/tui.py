@@ -136,6 +136,7 @@ class HandlerTUI(App[Any]):
 
             self._update_ui_connected(card)
             messages.add_system_message(f"✓ Connected to {card.name}")
+            self.query_one("#agent-card-container", AgentCardPanel).focus()
 
         except Exception as e:
             logger.error("Connection failed: %s", e, exc_info=True)

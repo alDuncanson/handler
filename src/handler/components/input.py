@@ -18,6 +18,7 @@ class InputPanel(Container):
     def on_mount(self) -> None:
         self.border_title = "INPUT"
         self.border_subtitle = "PRESS ENTER TO SEND"
+        self.query_one("#send-btn", Button).can_focus = False
 
     def get_message(self) -> str:
         """Get and clear the current message input."""

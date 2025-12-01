@@ -36,32 +36,9 @@ class Message(Vertical):
 
 
 class ChatScroll(VerticalScroll):
-    """Scrollable chat area with localized bindings."""
+    """Scrollable chat area."""
 
-    BINDINGS = [
-        Binding("j", "scroll_down", "Scroll Down", show=False),
-        Binding("k", "scroll_up", "Scroll Up", show=False),
-        Binding("down", "scroll_down", "Scroll Down", show=False),
-        Binding("up", "scroll_up", "Scroll Up", show=False),
-    ]
-
-    def on_mount(self) -> None:
-        self.can_focus = False
-
-    def check_scrollability(self) -> None:
-        if self.virtual_size.height > self.size.height:
-            self.can_focus = True
-        else:
-            self.can_focus = False
-
-    def on_resize(self) -> None:
-        self.check_scrollability()
-
-    def action_scroll_down(self) -> None:
-        self.scroll_down()
-
-    def action_scroll_up(self) -> None:
-        self.scroll_up()
+    can_focus = False
 
 
 class MessagesPanel(Container):
@@ -91,7 +68,6 @@ class MessagesPanel(Container):
         message = Message(role, content)
         chat.mount(message)
         chat.scroll_end(animate=False)
-        chat.call_after_refresh(chat.check_scrollability)
 
     def add_system_message(self, content: str) -> None:
         logger.info("System message: %s", content)

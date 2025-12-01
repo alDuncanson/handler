@@ -66,6 +66,8 @@ class AgentCardPanel(Container):
     def on_mount(self) -> None:
         self.border_title = "AGENT CARD"
         self.border_subtitle = "READY"
+        for widget in self.query("TabbedContent, Tabs, Tab, TabPane, VerticalScroll"):
+            widget.can_focus = False
 
     def _get_syntax_theme(self) -> str:
         """Get the Rich Syntax theme name for the current app theme."""
