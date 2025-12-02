@@ -3,37 +3,58 @@
 ## Commands
 Use `just` for all development tasks:
 
-- **Verify**: `just check` (lint + format + typecheck)
-- **Fix**: `just fix` (auto-fix lint/format)
-- **Run Server**: `just server` (starts on port 8000)
-- **Run TUI**: `just tui`
-- **Run Web TUI**: `just web`
-- **Run CLI**: `uv run handler`
-- **Test**: `just test` (runs pytest)
+| Command | Description |
+|---------|-------------|
+| `just install` | Install dependencies |
+| `just check` | Run lint, format, and typecheck |
+| `just fix` | Auto-fix lint/format issues |
+| `just test` | Run pytest test suite |
+| `just server` | Start A2A server (port 8000) |
+| `just tui` | Run TUI application |
+| `just tui-dev` | Run TUI with Textual devtools |
+| `just web` | Serve TUI as web app |
+| `just console` | Run Textual devtools console |
+| `just get-card` | Fetch agent card (CLI) |
+| `just send` | Send message to agent (CLI) |
 
 ## Project Structure
 
-- **`packages/cli`**: `handler` CLI tool. Uses `rich` for output.
-- **`packages/client`**: A2A protocol wrapper. Shared by CLI and TUI.
-- **`packages/server`**: Reference agent server. Uses `google-adk` and `litellm`.
-- **`src/handler`**: TUI application (Textual).
+```
+handler/
+├── packages/
+│   ├── cli/         # handler-cli: CLI tool (click, httpx)
+│   ├── client/      # handler-client: A2A protocol wrapper (a2a-sdk)
+│   ├── common/      # handler-common: Shared utilities (rich, logging)
+│   └── server/      # handler-server: Reference A2A server (google-adk, litellm)
+├── src/handler/     # handler-app: TUI application (textual)
+└── tests/           # pytest tests
+```
 
 ## Code Style & Conventions
 
-- **Python 3.11+** with full type hints.
-- **Formatting**: `ruff format` (black compatible).
-- **Linting**: `ruff check`.
-- **Type Checking**: `ty`.
-- **Imports**: Standard -> Third-party -> Local.
-- **Testing**: Add `pytest` tests for all new functionality.
+- **Python 3.11+** with full type hints
+- **Formatting**: `ruff format` (black compatible)
+- **Linting**: `ruff check`
+- **Type Checking**: `ty check`
+- **Imports**: Standard → Third-party → Local
+- **Testing**: pytest with pytest-asyncio for async tests
 
-## Environment
+## Environment Variables
 
-- **OLLAMA_API_BASE**: defaults to `http://localhost:11434`
-- **OLLAMA_MODEL**: defaults to `qwen3`
+- `OLLAMA_API_BASE`: Ollama server URL (default: `http://localhost:11434`)
+- `OLLAMA_MODEL`: Model to use (default: `qwen3`)
 
 ## A2A Protocol
 
-The `packages/client` library encapsulates A2A protocol logic.
-- Use `fetch_agent_card` to retrieve agent metadata.
-- Use `send_message_to_agent` for interactions.
+The `packages/client` library encapsulates A2A protocol logic:
+- `build_http_client()` - Create configured HTTP client
+- `fetch_agent_card()` - Retrieve agent metadata
+- `send_message_to_agent()` - Send messages and get responses
+
+## Key Dependencies
+
+- **CLI**: `click`, `httpx`
+- **Client**: `a2a-sdk`, `httpx`
+- **Server**: `google-adk`, `litellm`, `uvicorn`
+- **TUI**: `textual`
+- **Common**: `rich`
