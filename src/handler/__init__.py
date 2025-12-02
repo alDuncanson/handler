@@ -1,7 +1,7 @@
 """Handler - A2A protocol client and TUI for agent interaction"""
 
-__version__ = "0.1.0"
+from handler_common import __version__
 
 from handler.tui import HandlerTUI, main
 
-__all__ = ["HandlerTUI", "main"]
+__all__ = ["__version__", "HandlerTUI", "main"]

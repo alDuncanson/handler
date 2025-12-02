@@ -1,6 +1,6 @@
 [project]
 name = "handler-server"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Handler reference agent server"
 requires-python = ">=3.11"
 dependencies = [
@@ -18,3 +18,6 @@ handler-server = "handler_server.server:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "../common/src/handler_common/_version.py"
