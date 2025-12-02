@@ -1,6 +1,14 @@
 # Handler
 
+<div align="center">
+
 [![CI](https://github.com/alDuncanson/handler/actions/workflows/ci.yml/badge.svg)](https://github.com/alDuncanson/handler/actions/workflows/ci.yml)
+[![A2A Protocol](https://img.shields.io/badge/A2A_Protocol-v0.3.0-blue)](https://a2a-protocol.org/latest/)
+[![GitHub release](https://img.shields.io/github/v/release/alDuncanson/handler)](https://github.com/alDuncanson/handler/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/alDuncanson/handler/total)](https://github.com/alDuncanson/handler/releases)
+[![GitHub stars](https://img.shields.io/github/stars/alDuncanson/handler)](https://github.com/alDuncanson/handler/stargazers)
+
+</div>
 
 An [A2A](https://a2a-protocol.org/latest/) Protocol client TUI and CLI.
 
