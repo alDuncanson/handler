@@ -16,6 +16,7 @@ Use `just` for all development tasks:
 | `just console` | Run Textual devtools console |
 | `just get-card` | Fetch agent card (CLI) |
 | `just send` | Send message to agent (CLI) |
+| `just version` | Show current version |
 
 ## Project Structure
 

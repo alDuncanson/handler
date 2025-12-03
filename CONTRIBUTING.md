@@ -42,6 +42,7 @@ just install  # or: uv sync
 | `just console` | Run Textual devtools console |
 | `just get-card [url]` | Fetch agent card from URL |
 | `just send [url] [msg]` | Send message to agent |
+| `just version` | Show current version |
 
 ## Code Style
 
