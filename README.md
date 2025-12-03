@@ -15,18 +15,18 @@ An [A2A](https://a2a-protocol.org/latest/) Protocol client TUI and CLI.
 This project is managed with [uv](https://docs.astral.sh/uv/), so you can run Handler in a temporary, isolated environment:
 
 ```bash
-uvx git+https://github.com/alDuncanson/handler
+uvx --from git+https://github.com/alDuncanson/Handler.git@v0.1.0 handler
 ```
 
 or, install it globally:
 
 ```bash
-uv tool install git+https://github.com/alDuncanson/handler
+uv tool install git+https://github.com/alDuncanson/Handler.git@v0.1.0
 ```
 
 ## Use
 
-Now you can use Handler:
+Then, you can use Handler:
 
 ```bash
 handler
