@@ -1,3 +1,4 @@
+from handler_common._version import __version__
 from handler_common.logging import (
     console,
     get_logger,
@@ -14,6 +15,7 @@ from handler_common.printing import (
 )
 
 __all__ = [
+    "__version__",
     "console",
     "get_logger",
     "print_error",

@@ -1314,7 +1314,6 @@ wheels = [
 
 [[package]]
 name = "handler"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "handler-cli" },
@@ -1355,7 +1354,6 @@ dev = [
 
 [[package]]
 name = "handler-app"
-version = "0.1.0"
 source = { editable = "src/handler" }
 dependencies = [
     { name = "handler-client" },
@@ -1372,7 +1370,6 @@ requires-dist = [
 
 [[package]]
 name = "handler-cli"
-version = "0.1.0"
 source = { editable = "packages/cli" }
 dependencies = [
     { name = "click" },
@@ -1391,7 +1388,6 @@ requires-dist = [
 
 [[package]]
 name = "handler-client"
-version = "0.1.0"
 source = { editable = "packages/client" }
 dependencies = [
     { name = "a2a-sdk" },
@@ -1408,7 +1404,6 @@ requires-dist = [
 
 [[package]]
 name = "handler-common"
-version = "0.1.0"
 source = { editable = "packages/common" }
 dependencies = [
     { name = "rich" },
@@ -1419,7 +1414,6 @@ requires-dist = [{ name = "rich", specifier = ">=13.0.0" }]
 
 [[package]]
 name = "handler-server"
-version = "0.1.0"
 source = { editable = "packages/server" }
 dependencies = [
     { name = "click" },

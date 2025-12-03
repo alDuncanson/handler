@@ -54,3 +54,7 @@ check:
 fix:
     uv run ruff check --fix .
     uv run ruff format .
+
+# Show the current version
+version:
+    uvx hatch version

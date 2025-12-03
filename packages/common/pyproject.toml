@@ -1,6 +1,6 @@
 [project]
 name = "handler-common"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Shared utilities for Handler packages"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,3 +10,6 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/handler_common/_version.py"
