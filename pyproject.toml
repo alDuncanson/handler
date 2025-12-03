@@ -15,8 +15,8 @@ dependencies = [
 [tool.uv.workspace]
 members = ["packages/*", "src/handler"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "ruff>=0.8.0",
     "textual-dev>=1.8.0",
     "pytest>=8.0.0",
