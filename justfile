@@ -58,3 +58,11 @@ fix:
 # Show the current version
 version:
     uvx hatch version
+
+# Create a git tag for the current version
+tag:
+    git tag "v$(uvx hatch version)"
+
+# Tag and push the release to origin
+release: tag
+    git push origin "v$(uvx hatch version)"
