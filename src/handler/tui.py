@@ -9,6 +9,7 @@ from handler_client import (
     fetch_agent_card,
     send_message_to_agent,
 )
+from handler_common import __version__
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -67,7 +68,7 @@ class HandlerTUI(App[Any]):
         self.theme = "gruvbox"
 
         root = self.query_one("#root-container", Container)
-        root.border_title = "Handler 0.1.0 [red]●[/red] Disconnected"
+        root.border_title = f"Handler v{__version__} [red]●[/red] Disconnected"
 
         messages = self.query_one("#messages-container", MessagesPanel)
         messages.add_system_message("Welcome! Connect to an agent to start chatting.")
@@ -98,7 +99,9 @@ class HandlerTUI(App[Any]):
 
     def _update_ui_connected(self, card: AgentCard) -> None:
         root = self.query_one("#root-container", Container)
-        root.border_title = f"Handler 0.1.0 [green]●[/green] Connected: {card.name}"
+        root.border_title = (
+            f"Handler v{__version__} [green]●[/green] Connected: {card.name}"
+        )
 
         self.query_one("#agent-card-container", AgentCardPanel).update_card(card)
         self.query_one("#contact-container", ContactPanel).set_connected(True)
@@ -106,7 +109,7 @@ class HandlerTUI(App[Any]):
 
     def _update_ui_disconnected(self) -> None:
         root = self.query_one("#root-container", Container)
-        root.border_title = "Handler 0.1.0 [red]●[/red] Disconnected"
+        root.border_title = f"Handler v{__version__} [red]●[/red] Disconnected"
 
         self.query_one("#agent-card-container", AgentCardPanel).update_card(None)
         self.query_one("#contact-container", ContactPanel).set_connected(False)
