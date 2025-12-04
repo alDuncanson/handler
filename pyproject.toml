@@ -1,5 +1,5 @@
 [project]
-name = "handler"
+name = "a2a-handler"
 dynamic = ["version"]
 description = "Handler - A terminal interface for managing remote agents in the field"
 requires-python = ">=3.11"
