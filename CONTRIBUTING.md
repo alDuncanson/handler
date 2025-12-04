@@ -44,6 +44,9 @@ just install  # or: uv sync
 | `just get-card [url]` | Fetch agent card from URL |
 | `just send [url] [msg]` | Send message to agent |
 | `just version` | Show current version |
+| `just bump [level]` | Bump version (patch, minor, major) |
+| `just tag` | Create git tag for current version |
+| `just release` | Tag and push release to origin |
 
 ## Code Style
 
