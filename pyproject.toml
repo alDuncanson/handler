@@ -1,7 +1,7 @@
 [project]
 name = "a2a-handler"
 dynamic = ["version"]
-description = "Handler - A terminal interface for managing remote agents in the field"
+description = "An A2A Protocol client TUI and CLI."
 requires-python = ">=3.11"
 dependencies = [
     "handler-cli",
