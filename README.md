@@ -8,7 +8,7 @@
 
 An [A2A](https://a2a-protocol.org/latest/) Protocol client TUI and CLI.
 
-![Handler TUI](./assets/handler-tui.png)
+![Handler TUI](https://github.com/alDuncanson/Handler/blob/b50274f45080c3b95de37f56937a17c1e82152a4/assets/handler-tui.png?raw=true)
 
 ## Install
 
