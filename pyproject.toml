@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Al Duncanson", email = "al@alduncanson.com" }
+    { name = "Al Duncanson", email = "alDuncanson@proton.me" }
 ]
 keywords = [
     "a2a",
