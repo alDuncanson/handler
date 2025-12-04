@@ -17,7 +17,7 @@ from textual.containers import Container, Vertical
 from textual.logging import TextualHandler
 from textual.widgets import Button, Input
 
-from handler.components import (
+from a2a_handler.components import (
     AgentCardPanel,
     ContactPanel,
     Footer,

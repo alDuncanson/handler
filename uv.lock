@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -9,12 +9,51 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "handler",
-    "handler-app",
+    "a2a-handler",
     "handler-cli",
     "handler-client",
     "handler-common",
     "handler-server",
+]
+
+[[package]]
+name = "a2a-handler"
+source = { editable = "." }
+dependencies = [
+    { name = "handler-cli" },
+    { name = "handler-client" },
+    { name = "handler-common" },
+    { name = "handler-server" },
+    { name = "httpx" },
+    { name = "textual" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "textual-dev" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "handler-cli", editable = "packages/cli" },
+    { name = "handler-client", editable = "packages/client" },
+    { name = "handler-common", editable = "packages/common" },
+    { name = "handler-server", editable = "packages/server" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "textual", specifier = ">=0.47.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "ruff", specifier = ">=0.8.0" },
+    { name = "textual-dev", specifier = ">=1.8.0" },
+    { name = "ty", specifier = ">=0.0.1a27" },
 ]
 
 [[package]]
@@ -1310,62 +1349,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1", size = 101250, upload-time = "2025-04-24T03:35:25.427Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
-]
-
-[[package]]
-name = "handler"
-source = { editable = "." }
-dependencies = [
-    { name = "handler-cli" },
-    { name = "handler-client" },
-    { name = "handler-common" },
-    { name = "handler-server" },
-    { name = "httpx" },
-    { name = "textual" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "textual-dev" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "handler-cli", editable = "packages/cli" },
-    { name = "handler-client", editable = "packages/client" },
-    { name = "handler-common", editable = "packages/common" },
-    { name = "handler-server", editable = "packages/server" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "textual", specifier = ">=0.47.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "ruff", specifier = ">=0.8.0" },
-    { name = "textual-dev", specifier = ">=1.8.0" },
-    { name = "ty", specifier = ">=0.0.1a27" },
-]
-
-[[package]]
-name = "handler-app"
-source = { editable = "src/handler" }
-dependencies = [
-    { name = "handler-client" },
-    { name = "httpx" },
-    { name = "textual" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "handler-client", editable = "packages/client" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "textual", specifier = ">=0.47.0" },
 ]
 
 [[package]]

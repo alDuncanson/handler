@@ -2,6 +2,6 @@
 
 from handler_common import __version__
 
-from handler.tui import HandlerTUI, main
+from a2a_handler.tui import HandlerTUI, main
 
 __all__ = ["__version__", "HandlerTUI", "main"]

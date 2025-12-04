@@ -1,5 +1,5 @@
 import pytest
-from handler.tui import HandlerTUI
+from a2a_handler.tui import HandlerTUI
 
 
 @pytest.mark.asyncio

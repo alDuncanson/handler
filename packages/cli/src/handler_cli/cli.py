@@ -173,7 +173,7 @@ def tui() -> None:
 
     log.info("Launching TUI")
     try:
-        from handler.tui import HandlerTUI
+        from a2a_handler.tui import HandlerTUI
     except ImportError as e:
         print_error(
             f"Failed to import TUI dependencies: {e}\n\nMake sure handler-tui is installed."
