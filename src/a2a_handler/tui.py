@@ -4,12 +4,12 @@ from typing import Any
 
 import httpx
 from a2a.types import AgentCard
-from handler_client import (
+from a2a_handler._version import __version__
+from a2a_handler.client import (
     build_http_client,
     fetch_agent_card,
     send_message_to_agent,
 )
-from handler_common import __version__
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding

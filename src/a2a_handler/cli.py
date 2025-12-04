@@ -4,12 +4,13 @@ from typing import Optional
 
 import click
 import httpx
-from handler_client import (
+
+from a2a_handler.client import (
     build_http_client,
     fetch_agent_card,
     send_message_to_agent,
 )
-from handler_common import (
+from a2a_handler.common import (
     console,
     get_logger,
     print_error,
@@ -173,7 +174,7 @@ def tui() -> None:
 
     log.info("Launching TUI")
     try:
-        from a2a_handler.tui import HandlerTUI
+        from .tui import HandlerTUI
     except ImportError as e:
         print_error(
             f"Failed to import TUI dependencies: {e}\n\nMake sure handler-tui is installed."
@@ -195,7 +196,7 @@ def server(host: str, port: int) -> None:
     Requires Ollama to be running (default: http://localhost:11434) with the qwen3 model (configurable via OLLAMA_API_BASE and OLLAMA_MODEL).
     """
     try:
-        from handler_server.server import run_server
+        from a2a_handler.server import run_server
     except ImportError as e:
         print_error(
             f"Failed to import server dependencies: {e}\n\nMake sure handler-server is installed."

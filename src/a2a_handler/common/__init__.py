@@ -1,10 +1,14 @@
-from handler_common._version import __version__
-from handler_common.logging import (
+"""Common utilities for Handler."""
+
+from .logging import (
+    HANDLER_THEME,
+    LogLevel,
     console,
     get_logger,
     setup_logging,
 )
-from handler_common.printing import (
+from .printing import (
+    BorderStyle,
     print_error,
     print_info,
     print_json,
@@ -15,7 +19,9 @@ from handler_common.printing import (
 )
 
 __all__ = [
-    "__version__",
+    "BorderStyle",
+    "HANDLER_THEME",
+    "LogLevel",
     "console",
     "get_logger",
     "print_error",

@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents.llm_agent import Agent
 from google.adk.models.lite_llm import LiteLlm
-from handler_common import console, get_logger, setup_logging
+
+from a2a_handler.common import console, get_logger, setup_logging
 
 setup_logging(level="INFO", suppress_libs=["uvicorn", "google"])
 log = get_logger(__name__)

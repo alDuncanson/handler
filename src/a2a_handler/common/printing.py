@@ -6,7 +6,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-from handler_common.logging import console
+from .logging import console
 
 BorderStyle = Literal["green", "blue", "yellow", "red", "cyan", "magenta", "dim"]
 

@@ -13,7 +13,8 @@ from a2a.types import (
     TextPart,
     TransportProtocol,
 )
-from handler_common import get_logger
+
+from a2a_handler.common import get_logger
 
 log = get_logger(__name__)
 
