@@ -57,12 +57,16 @@ fix:
 
 # Show the current version
 version:
-    uvx hatch version
+    uv version
+
+# Bump version (major, minor, or patch)
+bump level="patch":
+    uv version --bump {{level}}
 
 # Create a git tag for the current version
 tag:
-    git tag "v$(uvx hatch version)"
+    git tag "v$(uv version --short)"
 
 # Tag and push the release to origin
 release: tag
-    git push origin "v$(uvx hatch version)"
+    git push origin "v$(uv version --short)"
