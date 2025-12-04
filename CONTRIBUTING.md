@@ -2,15 +2,16 @@
 
 ## Architecture
 
-Handler is a [uv managed workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/) with five packages:
+Handler is a single Python package (`a2a-handler`) with all modules under `src/a2a_handler/`:
 
-| Package | Name | Description |
-|---------|------|-------------|
-| `packages/cli` | `handler-cli` | CLI built with `click`. Entry point: `handler` |
-| `packages/client` | `handler-client` | A2A protocol client library using `a2a-sdk` |
-| `packages/common` | `handler-common` | Shared utilities (logging, printing with `rich`) |
-| `packages/server` | `handler-server` | Reference A2A agent using `google-adk` + `litellm` |
-| `src/handler` | `handler-app` | TUI application built with `textual` |
+| Module | Description |
+|--------|-------------|
+| `cli.py` | CLI built with `click`. Entry point: `handler` |
+| `client.py` | A2A protocol client library using `a2a-sdk` |
+| `common/` | Shared utilities (logging, printing with `rich`) |
+| `server.py` | Reference A2A agent using `google-adk` + `litellm` |
+| `tui.py` | TUI application built with `textual` |
+| `components/` | TUI components |
 
 ## Prerequisites
 
@@ -61,10 +62,10 @@ just install  # or: uv sync
 
 ## A2A Protocol
 
-The `packages/client` library provides the A2A protocol implementation:
+The `a2a_handler.client` module provides the A2A protocol implementation:
 
 ```python
-from handler_client import build_http_client, fetch_agent_card, send_message_to_agent
+from a2a_handler.client import build_http_client, fetch_agent_card, send_message_to_agent
 
 async with build_http_client() as client:
     card = await fetch_agent_card("http://localhost:8000", client)

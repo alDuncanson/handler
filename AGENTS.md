@@ -22,13 +22,17 @@ Use `just` for all development tasks:
 
 ```
 handler/
-├── packages/
-│   ├── cli/         # handler-cli: CLI tool (click, httpx)
-│   ├── client/      # handler-client: A2A protocol wrapper (a2a-sdk)
-│   ├── common/      # handler-common: Shared utilities (rich, logging)
-│   └── server/      # handler-server: Reference A2A server (google-adk, litellm)
-├── src/handler/     # handler-app: TUI application (textual)
-└── tests/           # pytest tests
+├── src/a2a_handler/     # Main package
+│   ├── _version.py      # Version string
+│   ├── cli.py           # CLI (click)
+│   ├── client.py        # A2A protocol client (a2a-sdk)
+│   ├── server.py        # A2A server agent (google-adk, litellm)
+│   ├── tui.py           # TUI application (textual)
+│   ├── common/          # Shared utilities (rich, logging)
+│   │   ├── logging.py
+│   │   └── printing.py
+│   └── components/      # TUI components
+└── tests/               # pytest tests
 ```
 
 ## Code Style & Conventions
@@ -47,14 +51,14 @@ handler/
 
 ## A2A Protocol
 
-The `packages/client` library encapsulates A2A protocol logic:
+The `a2a_handler.client` module provides A2A protocol logic:
 - `build_http_client()` - Create configured HTTP client
 - `fetch_agent_card()` - Retrieve agent metadata
 - `send_message_to_agent()` - Send messages and get responses
 
 ## Key Dependencies
 
-- **CLI**: `click`, `httpx`
+- **CLI**: `click`
 - **Client**: `a2a-sdk`, `httpx`
 - **Server**: `google-adk`, `litellm`, `uvicorn`
 - **TUI**: `textual`
