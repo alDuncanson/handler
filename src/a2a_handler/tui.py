@@ -4,7 +4,9 @@ from typing import Any
 
 import httpx
 from a2a.types import AgentCard
-from a2a_handler._version import __version__
+from importlib.metadata import version
+
+__version__ = version("a2a-handler")
 from a2a_handler.client import (
     build_http_client,
     fetch_agent_card,

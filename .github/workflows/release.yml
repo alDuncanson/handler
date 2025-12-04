@@ -44,10 +44,10 @@ jobs:
 
       - name: Verify version matches
         run: |
-          FILE_VERSION=$(grep -oP '__version__ = "\K[^"]+' packages/common/src/handler_common/_version.py)
+          PROJECT_VERSION=$(uv version --short)
           TAG_VERSION=${{ steps.version.outputs.VERSION }}
-          if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Version mismatch! File: $FILE_VERSION, Tag: $TAG_VERSION"
+          if [ "$PROJECT_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: Version mismatch! Project: $PROJECT_VERSION, Tag: $TAG_VERSION"
             exit 1
           fi
 

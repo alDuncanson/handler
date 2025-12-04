@@ -3,24 +3,25 @@
 [![CI](https://github.com/alDuncanson/handler/actions/workflows/ci.yml/badge.svg)](https://github.com/alDuncanson/handler/actions/workflows/ci.yml)
 [![A2A Protocol](https://img.shields.io/badge/A2A_Protocol-v0.3.0-blue)](https://a2a-protocol.org/latest/)
 [![GitHub release](https://img.shields.io/github/v/release/alDuncanson/handler)](https://github.com/alDuncanson/handler/releases)
+[![PyPI version](https://img.shields.io/pypi/v/a2a-handler)](https://pypi.org/project/a2a-handler/)
 [![GitHub stars](https://img.shields.io/github/stars/alDuncanson/handler)](https://github.com/alDuncanson/handler/stargazers)
 
 An [A2A](https://a2a-protocol.org/latest/) Protocol client TUI and CLI.
 
 ![Handler TUI](./assets/handler-tui.png)
 
-## Run
+## Install
 
-This project is managed with [uv](https://docs.astral.sh/uv/), so you can run Handler in a temporary, isolated environment:
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uvx --from git+https://github.com/alDuncanson/Handler.git@v0.1.3 handler
+uv tool install a2a-handler
 ```
 
-or, install it globally:
+Or run directly without installing:
 
 ```bash
-uv tool install git+https://github.com/alDuncanson/Handler.git@v0.1.3
+uvx --from a2a-handler handler
 ```
 
 ## Use

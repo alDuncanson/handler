@@ -17,6 +17,9 @@ Use `just` for all development tasks:
 | `just get-card` | Fetch agent card (CLI) |
 | `just send` | Send message to agent (CLI) |
 | `just version` | Show current version |
+| `just bump` | Bump version (patch, minor, major) |
+| `just tag` | Create git tag for current version |
+| `just release` | Tag and push release to origin |
 
 ## Project Structure
 
