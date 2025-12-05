@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 import rich_click as click
@@ -104,6 +104,82 @@ def cli(ctx, verbose: bool, debug: bool) -> None:
         setup_logging(level="WARNING")
 
 
+def _format_field_name(name: str) -> str:
+    """Convert snake_case or camelCase to Title Case."""
+    import re
+
+    name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
+    name = name.replace("_", " ")
+    return name.title()
+
+
+def _format_value(value: Any, indent: int = 0) -> str:
+    """Recursively format a value for display, returning only truthy content."""
+    prefix = "  " * indent
+
+    if value is None or value == "" or value == [] or value == {}:
+        return ""
+
+    if isinstance(value, bool):
+        return "✓" if value else "✗"
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, int | float):
+        return str(value)
+
+    if isinstance(value, list):
+        lines: list[str] = []
+        for item in value:
+            if hasattr(item, "model_dump"):
+                item_dict: dict[str, Any] = item.model_dump()
+                name = item_dict.get("name") or item_dict.get("id") or "Item"
+                desc = item_dict.get("description") or ""
+                if desc:
+                    desc_prefix = "  " * (indent + 1)
+                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{desc_prefix}  {desc}")
+                else:
+                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+            elif isinstance(item, dict):
+                item_d: dict[str, Any] = item
+                name = item_d.get("name") or item_d.get("id") or "Item"
+                desc = item_d.get("description") or ""
+                if desc:
+                    desc_prefix = "  " * (indent + 1)
+                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{desc_prefix}  {desc}")
+                else:
+                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+            else:
+                formatted = _format_value(item, indent)
+                if formatted:
+                    lines.append(f"{prefix}  • {formatted}")
+        return "\n" + "\n".join(lines) if lines else ""
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+
+    if isinstance(value, dict):
+        dict_lines: list[str] = []
+        for k, v in value.items():
+            if isinstance(k, str) and k.startswith("_"):
+                continue
+            formatted = _format_value(v, indent + 1)
+            if formatted:
+                field_name = _format_field_name(str(k))
+                if "\n" in formatted:
+                    dict_lines.append(
+                        f"{prefix}[bold]{field_name}:[/bold]\n{formatted}"
+                    )
+                else:
+                    dict_lines.append(f"{prefix}[bold]{field_name}:[/bold] {formatted}")
+        return "\n".join(dict_lines) if dict_lines else ""
+
+    return str(value) if value else ""
+
+
 @cli.command()
 @click.argument("agent_url")
 @click.option(
@@ -130,29 +206,33 @@ def card(agent_url: str, output: str) -> None:
                     print_json(card_data.model_dump_json(indent=2))
                 else:
                     log.debug("Outputting card as formatted text")
-                    title = f"[bold green]{card_data.name}[/bold green] [dim]v{__version__}[/dim]"
-                    content = f"[italic]{card_data.description}[/italic]\n\n[bold]URL:[/bold] {card_data.url}"
+                    card_dict = card_data.model_dump()
 
-                    if card_data.skills:
-                        log.debug("Card has %d skills", len(card_data.skills))
-                        content += "\n\n[bold]Skills:[/bold]"
-                        for skill in card_data.skills:
-                            content += (
-                                f"\n• [cyan]{skill.name}[/cyan]: {skill.description}"
-                            )
+                    name = card_dict.pop("name", "Unknown Agent")
+                    description = card_dict.pop("description", "")
 
-                    if card_data.capabilities:
-                        log.debug("Card has capabilities defined")
-                        content += "\n\n[bold]Capabilities:[/bold]"
-                        if hasattr(card_data.capabilities, "pushNotifications"):
-                            status = (
-                                "✅"
-                                if card_data.capabilities.push_notifications
-                                else "❌"
-                            )
-                            content += f"\n• Push Notifications: {status}"
+                    title = f"[bold green]{name}[/bold green] [dim]v{__version__}[/dim]"
+                    content_parts = []
 
-                    print_panel(content, title=title)
+                    if description:
+                        content_parts.append(f"[italic]{description}[/italic]")
+
+                    for key, value in card_dict.items():
+                        if key.startswith("_"):
+                            continue
+                        formatted = _format_value(value)
+                        if formatted:
+                            field_name = _format_field_name(key)
+                            if "\n" in formatted:
+                                content_parts.append(
+                                    f"[bold]{field_name}:[/bold]\n{formatted}"
+                                )
+                            else:
+                                content_parts.append(
+                                    f"[bold]{field_name}:[/bold] {formatted}"
+                                )
+
+                    print_panel("\n\n".join(content_parts), title=title)
 
         except A2AClientTimeoutError:
             log.error("Request to %s timed out", agent_url)
