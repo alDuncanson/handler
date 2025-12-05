@@ -19,6 +19,12 @@ from a2a_handler.common import (
 
 setup_logging(level="WARNING")
 
+from a2a.client.errors import (  # noqa: E402
+    A2AClientError,
+    A2AClientHTTPError,
+    A2AClientTimeoutError,
+)
+
 from a2a_handler.client import (  # noqa: E402
     build_http_client,
     fetch_agent_card,
@@ -125,6 +131,25 @@ def card(agent_url: str, output: str) -> None:
 
                     print_panel(content, title=title)
 
+        except A2AClientTimeoutError:
+            log.error("Request to %s timed out", agent_url)
+            print_error("Request timed out")
+            raise click.Abort()
+        except A2AClientHTTPError as e:
+            log.error("A2A client error: %s", e)
+            if "connection" in str(e).lower():
+                print_error(f"Connection failed: Is the server running at {agent_url}?")
+            else:
+                print_error(str(e))
+            raise click.Abort()
+        except A2AClientError as e:
+            log.error("A2A client error: %s", e)
+            print_error(str(e))
+            raise click.Abort()
+        except httpx.ConnectError:
+            log.error("Connection refused to %s", agent_url)
+            print_error(f"Connection refused: Is the server running at {agent_url}?")
+            raise click.Abort()
         except httpx.TimeoutException:
             log.error("Request to %s timed out", agent_url)
             print_error("Request timed out")
@@ -202,6 +227,25 @@ def send(
                         log.warning("Response contained no text content")
                         print_markdown("No text in response", title="Response")
 
+        except A2AClientTimeoutError:
+            log.error("Request to %s timed out", agent_url)
+            print_error("Request timed out")
+            raise click.Abort()
+        except A2AClientHTTPError as e:
+            log.error("A2A client error: %s", e)
+            if "connection" in str(e).lower():
+                print_error(f"Connection failed: Is the server running at {agent_url}?")
+            else:
+                print_error(str(e))
+            raise click.Abort()
+        except A2AClientError as e:
+            log.error("A2A client error: %s", e)
+            print_error(str(e))
+            raise click.Abort()
+        except httpx.ConnectError:
+            log.error("Connection refused to %s", agent_url)
+            print_error(f"Connection refused: Is the server running at {agent_url}?")
+            raise click.Abort()
         except httpx.TimeoutException:
             log.error("Request to %s timed out", agent_url)
             print_error("Request timed out")
