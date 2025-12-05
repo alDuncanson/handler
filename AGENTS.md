@@ -61,7 +61,7 @@ The `a2a_handler.client` module provides A2A protocol logic:
 
 ## Key Dependencies
 
-- **CLI**: `click`
+- **CLI**: `rich-click` (enhanced `click` with rich formatting)
 - **Client**: `a2a-sdk`, `httpx`
 - **Server**: `google-adk`, `litellm`, `uvicorn`
 - **TUI**: `textual`

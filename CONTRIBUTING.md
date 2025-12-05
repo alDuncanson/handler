@@ -6,7 +6,7 @@ Handler is a single Python package (`a2a-handler`) with all modules under `src/a
 
 | Module | Description |
 |--------|-------------|
-| `cli.py` | CLI built with `click`. Entry point: `handler` |
+| `cli.py` | CLI built with `rich-click`. Entry point: `handler` |
 | `client.py` | A2A protocol client library using `a2a-sdk` |
 | `common/` | Shared utilities (logging, printing with `rich`) |
 | `server.py` | Reference A2A agent using `google-adk` + `litellm` |
