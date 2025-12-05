@@ -3,8 +3,8 @@ import json
 import logging
 from typing import Optional
 
-import click
 import httpx
+import rich_click as click
 
 from a2a_handler import __version__
 from a2a_handler.common import (
@@ -16,6 +16,56 @@ from a2a_handler.common import (
     print_panel,
     setup_logging,
 )
+
+click.rich_click.USE_RICH_MARKUP = True
+click.rich_click.USE_MARKDOWN = True
+click.rich_click.SHOW_ARGUMENTS = True
+click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
+click.rich_click.STYLE_HELPTEXT = ""
+click.rich_click.STYLE_OPTION = "cyan"
+click.rich_click.STYLE_ARGUMENT = "cyan"
+click.rich_click.STYLE_COMMAND = "green"
+click.rich_click.STYLE_SWITCH = "bold green"
+click.rich_click.OPTION_GROUPS = {
+    "handler": [
+        {
+            "name": "Global Options",
+            "options": ["--verbose", "--debug", "--help"],
+        },
+    ],
+    "handler send": [
+        {
+            "name": "Conversation Options",
+            "options": ["--context-id", "--task-id"],
+        },
+        {
+            "name": "Output Options",
+            "options": ["--output", "--help"],
+        },
+    ],
+    "handler server": [
+        {
+            "name": "Server Options",
+            "options": ["--host", "--port", "--help"],
+        },
+    ],
+}
+click.rich_click.COMMAND_GROUPS = {
+    "handler": [
+        {
+            "name": "Agent Commands",
+            "commands": ["card", "send"],
+        },
+        {
+            "name": "Interface Commands",
+            "commands": ["tui", "server"],
+        },
+        {
+            "name": "Utility Commands",
+            "commands": ["version"],
+        },
+    ],
+}
 
 setup_logging(level="WARNING")
 
@@ -37,38 +87,12 @@ from a2a_handler.tui import HandlerTUI  # noqa: E402
 log = get_logger(__name__)
 
 
-class CustomHelpOption(click.Option):
-    """Custom help option with a better help message."""
-
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("is_flag", True)
-        kwargs.setdefault("expose_value", False)
-        kwargs.setdefault("is_eager", True)
-        kwargs.setdefault("help", "Show this help message.")
-        super().__init__(*args, **kwargs)
-
-    def handle_parse_result(self, ctx, opts, args):
-        if self.name in opts:
-            click.echo(ctx.get_help())
-            ctx.exit()
-        return super().handle_parse_result(ctx, opts, args)
-
-
-def add_help_option(f):
-    """Decorator to add a custom help option to a command."""
-    return click.option("-h", "--help", cls=CustomHelpOption)(f)
-
-
-CONTEXT_SETTINGS = {"help_option_names": []}
-
-
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging output")
 @click.option("--debug", "-d", is_flag=True, help="Enable debug logging output")
-@add_help_option
 @click.pass_context
 def cli(ctx, verbose: bool, debug: bool) -> None:
-    """Handler - A2A protocol client CLI."""
+    """Handler A2A protocol client CLI."""
     ctx.ensure_object(dict)
     if debug:
         log.debug("Debug logging enabled")
@@ -80,7 +104,7 @@ def cli(ctx, verbose: bool, debug: bool) -> None:
         setup_logging(level="WARNING")
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@cli.command()
 @click.argument("agent_url")
 @click.option(
     "--output",
@@ -89,7 +113,6 @@ def cli(ctx, verbose: bool, debug: bool) -> None:
     default="text",
     help="Output format",
 )
-@add_help_option
 def card(agent_url: str, output: str) -> None:
     """Fetch and display an agent card from AGENT_URL."""
     log.info("Fetching agent card from %s", agent_url)
@@ -171,7 +194,7 @@ def card(agent_url: str, output: str) -> None:
     asyncio.run(fetch())
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@cli.command()
 @click.argument("agent_url")
 @click.argument("message")
 @click.option("--context-id", help="Context ID for conversation continuity")
@@ -183,7 +206,6 @@ def card(agent_url: str, output: str) -> None:
     default="text",
     help="Output format",
 )
-@add_help_option
 def send(
     agent_url: str,
     message: str,
@@ -267,35 +289,27 @@ def send(
     asyncio.run(send_msg())
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
-@add_help_option
+@cli.command()
 def tui() -> None:
-    """Launch the interactive TUI interface."""
+    """Launch the TUI."""
     log.info("Launching TUI")
     logging.getLogger().handlers = []
     app = HandlerTUI()
     app.run()
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
-@add_help_option
+@cli.command()
 def version() -> None:
     """Display the current version."""
     log.debug("Displaying version: %s", __version__)
     click.echo(__version__)
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@cli.command()
 @click.option("--host", default="0.0.0.0", help="Host to bind to", show_default=True)
 @click.option("--port", default=8000, help="Port to bind to", show_default=True)
-@add_help_option
 def server(host: str, port: int) -> None:
-    """Start the A2A server agent backed by Ollama.
-
-    Requires Ollama to be running with the qwen3 model. Configure with
-    OLLAMA_API_BASE (default: http://localhost:11434) and OLLAMA_MODEL
-    environment variables.
-    """
+    """Start the A2A server agent backed by Ollama."""
     log.info("Starting A2A server on %s:%d", host, port)
     run_server(host, port)
 
