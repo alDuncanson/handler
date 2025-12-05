@@ -22,6 +22,7 @@ setup_logging(level="WARNING")
 from a2a_handler.client import (  # noqa: E402
     build_http_client,
     fetch_agent_card,
+    parse_response,
     send_message_to_agent,
 )
 from a2a_handler.server import run_server  # noqa: E402
@@ -57,12 +58,17 @@ CONTEXT_SETTINGS = {"help_option_names": []}
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging output")
+@click.option("--debug", "-d", is_flag=True, help="Enable debug logging output")
 @add_help_option
 @click.pass_context
-def cli(ctx, verbose: bool) -> None:
+def cli(ctx, verbose: bool, debug: bool) -> None:
     """Handler - A2A protocol client CLI."""
     ctx.ensure_object(dict)
-    if verbose:
+    if debug:
+        log.debug("Debug logging enabled")
+        setup_logging(level="DEBUG")
+    elif verbose:
+        log.debug("Verbose logging enabled")
         setup_logging(level="INFO")
     else:
         setup_logging(level="WARNING")
@@ -80,19 +86,26 @@ def cli(ctx, verbose: bool) -> None:
 @add_help_option
 def card(agent_url: str, output: str) -> None:
     """Fetch and display an agent card from AGENT_URL."""
+    log.info("Fetching agent card from %s", agent_url)
 
     async def fetch() -> None:
         try:
+            log.debug("Building HTTP client")
             async with build_http_client() as client:
+                log.debug("Requesting agent card")
                 card_data = await fetch_agent_card(agent_url, client)
+                log.info("Retrieved card for agent: %s", card_data.name)
 
                 if output == "json":
+                    log.debug("Outputting card as JSON")
                     print_json(card_data.model_dump_json(indent=2))
                 else:
+                    log.debug("Outputting card as formatted text")
                     title = f"[bold green]{card_data.name}[/bold green] [dim]({card_data.version})[/dim]"
                     content = f"[italic]{card_data.description}[/italic]\n\n[bold]URL:[/bold] {card_data.url}"
 
                     if card_data.skills:
+                        log.debug("Card has %d skills", len(card_data.skills))
                         content += "\n\n[bold]Skills:[/bold]"
                         for skill in card_data.skills:
                             content += (
@@ -100,6 +113,7 @@ def card(agent_url: str, output: str) -> None:
                             )
 
                     if card_data.capabilities:
+                        log.debug("Card has capabilities defined")
                         content += "\n\n[bold]Capabilities:[/bold]"
                         if hasattr(card_data.capabilities, "pushNotifications"):
                             status = (
@@ -112,13 +126,20 @@ def card(agent_url: str, output: str) -> None:
                     print_panel(content, title=title)
 
         except httpx.TimeoutException:
+            log.error("Request to %s timed out", agent_url)
             print_error("Request timed out")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
+            log.error(
+                "HTTP error %d from %s: %s",
+                e.response.status_code,
+                agent_url,
+                e.response.text,
+            )
             print_error(f"HTTP {e.response.status_code} - {e.response.text}")
             raise click.Abort()
         except Exception as e:
-            log.exception("Failed to fetch agent card")
+            log.exception("Failed to fetch agent card from %s", agent_url)
             print_error(str(e))
             raise click.Abort()
 
@@ -146,46 +167,56 @@ def send(
     output: str,
 ) -> None:
     """Send MESSAGE to an agent at AGENT_URL."""
+    log.info("Sending message to %s", agent_url)
+    log.debug("Message: %s", message[:100] if len(message) > 100 else message)
+
+    if context_id:
+        log.debug("Using context ID: %s", context_id)
+    if task_id:
+        log.debug("Using task ID: %s", task_id)
 
     async def send_msg() -> None:
         try:
+            log.debug("Building HTTP client")
             async with build_http_client() as client:
-                log.debug("Sending message to %s", agent_url)
-
                 if output == "text":
                     console.print(f"[dim]Sending message to {agent_url}...[/dim]")
 
+                log.debug("Sending message via A2A client")
                 response = await send_message_to_agent(
                     agent_url, message, client, context_id, task_id
                 )
+                log.debug("Received response from agent")
 
                 if output == "json":
+                    log.debug("Outputting response as JSON")
                     print_json(json.dumps(response, indent=2))
                 else:
-                    if not response:
-                        text = "Error: No result in response"
+                    log.debug("Parsing response for text output")
+                    parsed = parse_response(response)
+
+                    if parsed.has_content:
+                        log.debug("Response contains %d characters", len(parsed.text))
+                        print_markdown(parsed.text, title="Response")
                     else:
-                        texts = []
-                        if "parts" in response:
-                            texts.extend(p.get("text", "") for p in response["parts"])
-
-                        for artifact in response.get("artifacts", []):
-                            texts.extend(
-                                p.get("text", "") for p in artifact.get("parts", [])
-                            )
-
-                        text = "\n".join(t for t in texts if t) or "No text in response"
-
-                    print_markdown(text, title="Response")
+                        log.warning("Response contained no text content")
+                        print_markdown("No text in response", title="Response")
 
         except httpx.TimeoutException:
+            log.error("Request to %s timed out", agent_url)
             print_error("Request timed out")
             raise click.Abort()
         except httpx.HTTPStatusError as e:
+            log.error(
+                "HTTP error %d from %s: %s",
+                e.response.status_code,
+                agent_url,
+                e.response.text,
+            )
             print_error(f"HTTP {e.response.status_code} - {e.response.text}")
             raise click.Abort()
         except Exception as e:
-            log.exception("Failed to send message")
+            log.exception("Failed to send message to %s", agent_url)
             print_error(str(e))
             raise click.Abort()
 
@@ -206,6 +237,7 @@ def tui() -> None:
 @add_help_option
 def version() -> None:
     """Display the current version."""
+    log.debug("Displaying version: %s", __version__)
     click.echo(__version__)
 
 
@@ -220,6 +252,7 @@ def server(host: str, port: int) -> None:
     OLLAMA_API_BASE (default: http://localhost:11434) and OLLAMA_MODEL
     environment variables.
     """
+    log.info("Starting A2A server on %s:%d", host, port)
     run_server(host, port)
 
 
