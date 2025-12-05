@@ -6,6 +6,7 @@ from typing import Optional
 import click
 import httpx
 
+from a2a_handler import __version__
 from a2a_handler.common import (
     console,
     get_logger,
@@ -183,6 +184,12 @@ def tui() -> None:
     logging.getLogger().handlers = []
     app = HandlerTUI()
     app.run()
+
+
+@cli.command()
+def version() -> None:
+    """Display Handler's version."""
+    click.echo(__version__)
 
 
 @cli.command()
