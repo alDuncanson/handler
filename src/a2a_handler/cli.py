@@ -30,11 +30,37 @@ from a2a_handler.tui import HandlerTUI  # noqa: E402
 log = get_logger(__name__)
 
 
-@click.group()
+class CustomHelpOption(click.Option):
+    """Custom help option with a better help message."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("is_flag", True)
+        kwargs.setdefault("expose_value", False)
+        kwargs.setdefault("is_eager", True)
+        kwargs.setdefault("help", "Show this help message.")
+        super().__init__(*args, **kwargs)
+
+    def handle_parse_result(self, ctx, opts, args):
+        if self.name in opts:
+            click.echo(ctx.get_help())
+            ctx.exit()
+        return super().handle_parse_result(ctx, opts, args)
+
+
+def add_help_option(f):
+    """Decorator to add a custom help option to a command."""
+    return click.option("-h", "--help", cls=CustomHelpOption)(f)
+
+
+CONTEXT_SETTINGS = {"help_option_names": []}
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging output")
+@add_help_option
 @click.pass_context
 def cli(ctx, verbose: bool) -> None:
-    """Handler - A2A protocol client CLI"""
+    """Handler - A2A protocol client CLI."""
     ctx.ensure_object(dict)
     if verbose:
         setup_logging(level="INFO")
@@ -42,7 +68,7 @@ def cli(ctx, verbose: bool) -> None:
         setup_logging(level="WARNING")
 
 
-@cli.command()
+@cli.command(context_settings=CONTEXT_SETTINGS)
 @click.argument("agent_url")
 @click.option(
     "--output",
@@ -51,13 +77,9 @@ def cli(ctx, verbose: bool) -> None:
     default="text",
     help="Output format",
 )
+@add_help_option
 def card(agent_url: str, output: str) -> None:
-    """Fetch and display an agent card.
-
-    Args:
-        agent_url: The URL of the agent
-        output: Output format (json or text)
-    """
+    """Fetch and display an agent card from AGENT_URL."""
 
     async def fetch() -> None:
         try:
@@ -103,7 +125,7 @@ def card(agent_url: str, output: str) -> None:
     asyncio.run(fetch())
 
 
-@cli.command()
+@cli.command(context_settings=CONTEXT_SETTINGS)
 @click.argument("agent_url")
 @click.argument("message")
 @click.option("--context-id", help="Context ID for conversation continuity")
@@ -115,6 +137,7 @@ def card(agent_url: str, output: str) -> None:
     default="text",
     help="Output format",
 )
+@add_help_option
 def send(
     agent_url: str,
     message: str,
@@ -122,15 +145,7 @@ def send(
     task_id: Optional[str],
     output: str,
 ) -> None:
-    """Send a message to an agent.
-
-    Args:
-        agent_url: The URL of the agent
-        message: The message to send
-        context_id: Optional context ID for conversation continuity
-        task_id: Optional task ID to reference
-        output: Output format (json or text)
-    """
+    """Send MESSAGE to an agent at AGENT_URL."""
 
     async def send_msg() -> None:
         try:
@@ -177,28 +192,33 @@ def send(
     asyncio.run(send_msg())
 
 
-@cli.command()
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@add_help_option
 def tui() -> None:
-    """Launch the Handler TUI interface."""
+    """Launch the interactive TUI interface."""
     log.info("Launching TUI")
     logging.getLogger().handlers = []
     app = HandlerTUI()
     app.run()
 
 
-@cli.command()
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@add_help_option
 def version() -> None:
-    """Display Handler's version."""
+    """Display the current version."""
     click.echo(__version__)
 
 
-@cli.command()
-@click.option("--host", default="0.0.0.0", help="Host to bind to")
-@click.option("--port", default=8000, help="Port to bind to")
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--host", default="0.0.0.0", help="Host to bind to", show_default=True)
+@click.option("--port", default=8000, help="Port to bind to", show_default=True)
+@add_help_option
 def server(host: str, port: int) -> None:
     """Start the A2A server agent backed by Ollama.
 
-    Requires Ollama to be running (default: http://localhost:11434) with the qwen3 model (configurable via OLLAMA_API_BASE and OLLAMA_MODEL).
+    Requires Ollama to be running with the qwen3 model. Configure with
+    OLLAMA_API_BASE (default: http://localhost:11434) and OLLAMA_MODEL
+    environment variables.
     """
     run_server(host, port)
 
