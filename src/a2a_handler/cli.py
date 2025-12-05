@@ -1,15 +1,11 @@
 import asyncio
 import json
+import logging
 from typing import Optional
 
 import click
 import httpx
 
-from a2a_handler.client import (
-    build_http_client,
-    fetch_agent_card,
-    send_message_to_agent,
-)
 from a2a_handler.common import (
     console,
     get_logger,
@@ -20,16 +16,29 @@ from a2a_handler.common import (
     setup_logging,
 )
 
+setup_logging(level="WARNING")
 
-setup_logging(level="INFO")
+from a2a_handler.client import (  # noqa: E402
+    build_http_client,
+    fetch_agent_card,
+    send_message_to_agent,
+)
+from a2a_handler.server import run_server  # noqa: E402
+from a2a_handler.tui import HandlerTUI  # noqa: E402
+
 log = get_logger(__name__)
 
 
 @click.group()
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging output")
 @click.pass_context
-def cli(ctx) -> None:
+def cli(ctx, verbose: bool) -> None:
     """Handler - A2A protocol client CLI"""
     ctx.ensure_object(dict)
+    if verbose:
+        setup_logging(level="INFO")
+    else:
+        setup_logging(level="WARNING")
 
 
 @cli.command()
@@ -170,19 +179,8 @@ def send(
 @cli.command()
 def tui() -> None:
     """Launch the Handler TUI interface."""
-    import logging
-
     log.info("Launching TUI")
-    try:
-        from .tui import HandlerTUI
-    except ImportError as e:
-        print_error(
-            f"Failed to import TUI dependencies: {e}\n\nMake sure handler-tui is installed."
-        )
-        raise click.Abort()
-
     logging.getLogger().handlers = []
-
     app = HandlerTUI()
     app.run()
 
@@ -195,14 +193,6 @@ def server(host: str, port: int) -> None:
 
     Requires Ollama to be running (default: http://localhost:11434) with the qwen3 model (configurable via OLLAMA_API_BASE and OLLAMA_MODEL).
     """
-    try:
-        from a2a_handler.server import run_server
-    except ImportError as e:
-        print_error(
-            f"Failed to import server dependencies: {e}\n\nMake sure handler-server is installed."
-        )
-        raise click.Abort()
-
     run_server(host, port)
 
 
