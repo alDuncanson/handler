@@ -107,7 +107,7 @@ def card(agent_url: str, output: str) -> None:
                     print_json(card_data.model_dump_json(indent=2))
                 else:
                     log.debug("Outputting card as formatted text")
-                    title = f"[bold green]{card_data.name}[/bold green] [dim]({card_data.version})[/dim]"
+                    title = f"[bold green]{card_data.name}[/bold green] [dim]v{__version__}[/dim]"
                     content = f"[italic]{card_data.description}[/italic]\n\n[bold]URL:[/bold] {card_data.url}"
 
                     if card_data.skills:
