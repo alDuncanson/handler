@@ -4,7 +4,7 @@ from typing import Literal
 
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.syntax import Syntax
+from rich.json import JSON
 
 from .logging import console
 
@@ -53,16 +53,17 @@ def print_error(content: str, title: str | None = None) -> None:
     print_panel(content, title=title, border_style="red")
 
 
-def print_json(data: str, title: str | None = None, theme: str = "monokai") -> None:
-    """Print JSON with syntax highlighting in a panel.
+def print_json(data: str, title: str | None = None) -> None:
+    """Print JSON in a panel with structural highlighting.
 
     Args:
         data: JSON string to display
         title: Optional panel title
-        theme: Syntax highlighting theme
     """
-    syntax = Syntax(data, "json", theme=theme)
-    console.print(Panel(syntax, title=title, border_style="dim", expand=False))
+    json_renderable = JSON(data, highlight=False)
+    console.print(
+        Panel(json_renderable, title=title, border_style="green", expand=False)
+    )
 
 
 def print_markdown(
