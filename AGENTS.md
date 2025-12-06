@@ -16,6 +16,7 @@ Use `just` for all development tasks:
 | `just console` | Run Textual devtools console |
 | `just get-card` | Fetch agent card (CLI) |
 | `just send` | Send message to agent (CLI) |
+| `just validate` | Validate agent card (CLI) |
 | `just version` | Show current version |
 | `just bump` | Bump version (patch, minor, major) |
 | `just tag` | Create git tag for current version |
@@ -27,8 +28,9 @@ Use `just` for all development tasks:
 handler/
 ├── src/a2a_handler/     # Main package
 │   ├── _version.py      # Version string
-│   ├── cli.py           # CLI (click)
+│   ├── cli.py           # CLI (rich-click)
 │   ├── client.py        # A2A protocol client (a2a-sdk)
+│   ├── validation.py    # Agent card validation utilities
 │   ├── server.py        # A2A server agent (google-adk, litellm)
 │   ├── tui.py           # TUI application (textual)
 │   ├── common/          # Shared utilities (rich, logging)

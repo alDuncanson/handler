@@ -71,6 +71,14 @@ handler card http://localhost:8000
 handler card http://localhost:8000 --output json  # JSON output
 ```
 
+Validate an agent card from a URL or file:
+
+```bash
+handler validate http://localhost:8000             # Validate from URL
+handler validate ./agent-card.json                 # Validate from file
+handler validate http://localhost:8000 --output json  # JSON output
+```
+
 Send a message to an A2A agent:
 
 ```bash
