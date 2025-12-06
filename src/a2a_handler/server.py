@@ -1,14 +1,31 @@
-"""Handler A2A server agent."""
+"""Handler A2A server agent with full push notification support."""
 
 import os
+from collections.abc import Awaitable, Callable
 
 import click
+import httpx
 import uvicorn
+from a2a.server.apps import A2AStarletteApplication
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.tasks import (
+    InMemoryPushNotificationConfigStore,
+    InMemoryTaskStore,
+    BasePushNotificationSender,
+)
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from dotenv import load_dotenv
-from google.adk.a2a.utils.agent_to_a2a import to_a2a
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.agents.llm_agent import Agent
+from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from google.adk.auth.credential_service.in_memory_credential_service import (
+    InMemoryCredentialService,
+)
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from starlette.applications import Starlette
 
 from a2a_handler.common import console, get_logger, setup_logging
 
@@ -100,6 +117,80 @@ def build_agent_card(agent: Agent, host: str, port: int) -> AgentCard:
     )
 
 
+def create_runner_factory(agent: Agent) -> Callable[[], Awaitable[Runner]]:
+    """Create a factory function that builds a Runner for the agent.
+
+    Args:
+        agent: The ADK agent to wrap
+
+    Returns:
+        A callable that creates a Runner instance
+    """
+
+    async def create_runner() -> Runner:
+        return Runner(
+            app_name=agent.name or "handler_agent",
+            agent=agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+            credential_service=InMemoryCredentialService(),
+        )
+
+    return create_runner
+
+
+def create_a2a_app(agent: Agent, agent_card: AgentCard) -> Starlette:
+    """Create a Starlette A2A application with full push notification support.
+
+    This is a custom implementation that replaces google-adk's to_a2a() to add
+    push notification support. The to_a2a() function doesn't pass push_config_store
+    or push_sender to DefaultRequestHandler, causing push notification operations
+    to fail with "UnsupportedOperationError".
+
+    Args:
+        agent: The ADK agent
+        agent_card: Pre-configured agent card
+
+    Returns:
+        Configured Starlette application
+    """
+    task_store = InMemoryTaskStore()
+    push_config_store = InMemoryPushNotificationConfigStore()
+    http_client = httpx.AsyncClient(timeout=30.0)
+    push_sender = BasePushNotificationSender(http_client, push_config_store)
+
+    agent_executor = A2aAgentExecutor(
+        runner=create_runner_factory(agent),
+    )
+
+    request_handler = DefaultRequestHandler(
+        agent_executor=agent_executor,
+        task_store=task_store,
+        push_config_store=push_config_store,
+        push_sender=push_sender,
+    )
+
+    app = Starlette()
+
+    async def setup_a2a() -> None:
+        a2a_app = A2AStarletteApplication(
+            agent_card=agent_card,
+            http_handler=request_handler,
+        )
+        a2a_app.add_routes_to_app(app)
+        log.info("A2A routes configured with push notification support")
+
+    async def cleanup() -> None:
+        await http_client.aclose()
+        log.info("HTTP client closed")
+
+    app.add_event_handler("startup", setup_a2a)
+    app.add_event_handler("shutdown", cleanup)
+
+    return app
+
+
 def run_server(host: str, port: int) -> None:
     """Start the A2A server agent.
 
@@ -110,7 +201,7 @@ def run_server(host: str, port: int) -> None:
     console.print(
         f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
     )
-    log.info("Initializing A2A server...")
+    log.info("Initializing A2A server with push notification support...")
     agent = create_agent()
 
     agent_card = build_agent_card(agent, host, port)
@@ -122,7 +213,7 @@ def run_server(host: str, port: int) -> None:
         else False,
     )
 
-    a2a_app = to_a2a(agent, host=host, port=port, agent_card=agent_card)
+    a2a_app = create_a2a_app(agent, agent_card)
     uvicorn.run(a2a_app, host=host, port=port)
 
 
