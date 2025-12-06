@@ -35,8 +35,8 @@ click.rich_click.OPTION_GROUPS = {
     ],
     "handler send": [
         {
-            "name": "Conversation Options",
-            "options": ["--context-id", "--task-id"],
+            "name": "Message Options",
+            "options": ["--stream", "--continue", "--context-id", "--task-id"],
         },
         {
             "name": "Output Options",
@@ -49,20 +49,44 @@ click.rich_click.OPTION_GROUPS = {
             "options": ["--host", "--port", "--help"],
         },
     ],
+    "handler tasks get": [
+        {
+            "name": "Query Options",
+            "options": ["--history-length", "--output", "--help"],
+        },
+    ],
 }
 click.rich_click.COMMAND_GROUPS = {
     "handler": [
         {
             "name": "Agent Commands",
-            "commands": ["card", "send", "validate"],
+            "commands": ["card", "send", "validate", "tasks", "push"],
         },
         {
             "name": "Interface Commands",
-            "commands": ["tui", "server"],
+            "commands": ["tui", "server", "webhook"],
         },
         {
             "name": "Utility Commands",
-            "commands": ["version"],
+            "commands": ["version", "session"],
+        },
+    ],
+    "handler tasks": [
+        {
+            "name": "Task Commands",
+            "commands": ["get", "cancel", "resubscribe"],
+        },
+    ],
+    "handler push": [
+        {
+            "name": "Push Notification Commands",
+            "commands": ["set", "get"],
+        },
+    ],
+    "handler session": [
+        {
+            "name": "Session Commands",
+            "commands": ["list", "show", "clear"],
         },
     ],
 }
@@ -75,13 +99,19 @@ from a2a.client.errors import (  # noqa: E402
     A2AClientTimeoutError,
 )
 
+from a2a_handler.a2a_service import A2AService, SendResult, TaskResult  # noqa: E402
 from a2a_handler.client import (  # noqa: E402
     build_http_client,
     fetch_agent_card,
-    parse_response,
-    send_message_to_agent,
 )
+from a2a_handler.push_server import run_webhook_server  # noqa: E402
 from a2a_handler.server import run_server  # noqa: E402
+from a2a_handler.session import (  # noqa: E402
+    clear_session,
+    get_session,
+    get_session_store,
+    update_session,
+)
 from a2a_handler.tui import HandlerTUI  # noqa: E402
 from a2a_handler.validation import (  # noqa: E402
     ValidationResult,
@@ -90,6 +120,39 @@ from a2a_handler.validation import (  # noqa: E402
 )
 
 log = get_logger(__name__)
+
+
+def _handle_client_error(e: Exception, agent_url: str) -> None:
+    """Handle A2A client errors with appropriate messages."""
+    if isinstance(e, A2AClientTimeoutError):
+        log.error("Request to %s timed out", agent_url)
+        print_error("Request timed out")
+    elif isinstance(e, A2AClientHTTPError):
+        log.error("A2A client error: %s", e)
+        if "connection" in str(e).lower():
+            print_error(f"Connection failed: Is the server running at {agent_url}?")
+        else:
+            print_error(str(e))
+    elif isinstance(e, A2AClientError):
+        log.error("A2A client error: %s", e)
+        print_error(str(e))
+    elif isinstance(e, httpx.ConnectError):
+        log.error("Connection refused to %s", agent_url)
+        print_error(f"Connection refused: Is the server running at {agent_url}?")
+    elif isinstance(e, httpx.TimeoutException):
+        log.error("Request to %s timed out", agent_url)
+        print_error("Request timed out")
+    elif isinstance(e, httpx.HTTPStatusError):
+        log.error(
+            "HTTP error %d from %s: %s",
+            e.response.status_code,
+            agent_url,
+            e.response.text,
+        )
+        print_error(f"HTTP {e.response.status_code} - {e.response.text}")
+    else:
+        log.exception("Failed request to %s", agent_url)
+        print_error(str(e))
 
 
 @click.group()
@@ -185,6 +248,60 @@ def _format_value(value: Any, indent: int = 0) -> str:
     return str(value) if value else ""
 
 
+def _format_send_result(result: SendResult, output: str) -> None:
+    """Format and display a send result."""
+    if output == "json":
+        print_json(json.dumps(result.raw, indent=2))
+        return
+
+    content_parts = []
+
+    if result.context_id:
+        content_parts.append(f"[bold]Context ID:[/bold] [dim]{result.context_id}[/dim]")
+    if result.task_id:
+        content_parts.append(f"[bold]Task ID:[/bold] [dim]{result.task_id}[/dim]")
+    if result.state:
+        state_color = "green" if result.is_complete else "yellow"
+        content_parts.append(
+            f"[bold]State:[/bold] [{state_color}]{result.state.value}[/{state_color}]"
+        )
+
+    if content_parts:
+        console.print("\n".join(content_parts))
+        console.print()
+
+    if result.text:
+        print_markdown(result.text, title="Response")
+    else:
+        console.print("[dim]No text content in response[/dim]")
+
+
+def _format_task_result(result: TaskResult, output: str) -> None:
+    """Format and display a task result."""
+    if output == "json":
+        print_json(json.dumps(result.raw, indent=2))
+        return
+
+    state_color = "green" if result.state.value in ("completed",) else "yellow"
+    if result.state.value in ("failed", "rejected", "canceled"):
+        state_color = "red"
+
+    content_parts = [
+        f"[bold]Task ID:[/bold] [dim]{result.task_id}[/dim]",
+        f"[bold]State:[/bold] [{state_color}]{result.state.value}[/{state_color}]",
+    ]
+
+    if result.context_id:
+        content_parts.append(f"[bold]Context ID:[/bold] [dim]{result.context_id}[/dim]")
+
+    title = f"[bold]Task {result.task_id[:8]}...[/bold]"
+    print_panel("\n".join(content_parts), title=title)
+
+    if result.text:
+        console.print()
+        print_markdown(result.text, title="Content")
+
+
 @cli.command()
 @click.argument("agent_url")
 @click.option(
@@ -239,41 +356,8 @@ def card(agent_url: str, output: str) -> None:
 
                     print_panel("\n\n".join(content_parts), title=title)
 
-        except A2AClientTimeoutError:
-            log.error("Request to %s timed out", agent_url)
-            print_error("Request timed out")
-            raise click.Abort()
-        except A2AClientHTTPError as e:
-            log.error("A2A client error: %s", e)
-            if "connection" in str(e).lower():
-                print_error(f"Connection failed: Is the server running at {agent_url}?")
-            else:
-                print_error(str(e))
-            raise click.Abort()
-        except A2AClientError as e:
-            log.error("A2A client error: %s", e)
-            print_error(str(e))
-            raise click.Abort()
-        except httpx.ConnectError:
-            log.error("Connection refused to %s", agent_url)
-            print_error(f"Connection refused: Is the server running at {agent_url}?")
-            raise click.Abort()
-        except httpx.TimeoutException:
-            log.error("Request to %s timed out", agent_url)
-            print_error("Request timed out")
-            raise click.Abort()
-        except httpx.HTTPStatusError as e:
-            log.error(
-                "HTTP error %d from %s: %s",
-                e.response.status_code,
-                agent_url,
-                e.response.text,
-            )
-            print_error(f"HTTP {e.response.status_code} - {e.response.text}")
-            raise click.Abort()
         except Exception as e:
-            log.exception("Failed to fetch agent card from %s", agent_url)
-            print_error(str(e))
+            _handle_client_error(e, agent_url)
             raise click.Abort()
 
     asyncio.run(fetch())
@@ -282,8 +366,6 @@ def card(agent_url: str, output: str) -> None:
 def _format_validation_result(result: ValidationResult, output: str) -> None:
     """Format and print validation result."""
     if output == "json":
-        import json
-
         output_data = {
             "valid": result.valid,
             "source": result.source,
@@ -377,8 +459,16 @@ def validate(source: str, output: str) -> None:
 @cli.command()
 @click.argument("agent_url")
 @click.argument("message")
+@click.option("--stream", "-s", is_flag=True, help="Stream responses in real-time")
 @click.option("--context-id", help="Context ID for conversation continuity")
 @click.option("--task-id", help="Reference an existing task ID")
+@click.option(
+    "--continue",
+    "-c",
+    "use_session",
+    is_flag=True,
+    help="Continue last conversation (use saved context_id)",
+)
 @click.option(
     "--output",
     "-o",
@@ -389,13 +479,25 @@ def validate(source: str, output: str) -> None:
 def send(
     agent_url: str,
     message: str,
+    stream: bool,
     context_id: Optional[str],
     task_id: Optional[str],
+    use_session: bool,
     output: str,
 ) -> None:
-    """Send MESSAGE to an agent at AGENT_URL."""
+    """Send MESSAGE to an agent at AGENT_URL.
+
+    Use --stream to receive responses in real-time via Server-Sent Events.
+    Use --continue to automatically use the last context_id from previous conversation.
+    """
     log.info("Sending message to %s", agent_url)
     log.debug("Message: %s", message[:100] if len(message) > 100 else message)
+
+    if use_session and not context_id:
+        session = get_session(agent_url)
+        if session.context_id:
+            context_id = session.context_id
+            log.info("Using saved context ID: %s", context_id)
 
     if context_id:
         log.debug("Using context ID: %s", context_id)
@@ -404,69 +506,389 @@ def send(
 
     async def send_msg() -> None:
         try:
-            log.debug("Building HTTP client")
-            async with build_http_client() as client:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url, streaming=stream)
+
                 if output == "text":
                     console.print(f"[dim]Sending message to {agent_url}...[/dim]")
 
-                log.debug("Sending message via A2A client")
-                response = await send_message_to_agent(
-                    agent_url, message, client, context_id, task_id
-                )
-                log.debug("Received response from agent")
+                if stream:
+                    log.debug("Using streaming mode")
+                    collected_text: list[str] = []
+                    last_context_id: str | None = None
+                    last_task_id: str | None = None
+                    last_state = None
 
-                if output == "json":
-                    log.debug("Outputting response as JSON")
-                    print_json(json.dumps(response, indent=2))
+                    async for event in service.stream(message, context_id, task_id):
+                        last_context_id = event.context_id or last_context_id
+                        last_task_id = event.task_id or last_task_id
+                        last_state = event.state or last_state
+
+                        if output == "json":
+                            event_data = {
+                                "type": event.event_type,
+                                "context_id": event.context_id,
+                                "task_id": event.task_id,
+                                "state": event.state.value if event.state else None,
+                                "text": event.text,
+                            }
+                            print_json(json.dumps(event_data))
+                        else:
+                            if event.text and event.text not in collected_text:
+                                console.print(event.text, end="", markup=False)
+                                collected_text.append(event.text)
+
+                    update_session(agent_url, last_context_id, last_task_id)
+
+                    if output == "text":
+                        console.print()
+                        console.print()
+                        info_parts = []
+                        if last_context_id:
+                            info_parts.append(
+                                f"[bold]Context ID:[/bold] [dim]{last_context_id}[/dim]"
+                            )
+                        if last_task_id:
+                            info_parts.append(
+                                f"[bold]Task ID:[/bold] [dim]{last_task_id}[/dim]"
+                            )
+                        if last_state:
+                            info_parts.append(f"[bold]State:[/bold] {last_state.value}")
+                        if info_parts:
+                            console.print("\n".join(info_parts))
+
                 else:
-                    log.debug("Parsing response for text output")
-                    parsed = parse_response(response)
+                    log.debug("Using non-streaming mode")
+                    result = await service.send(message, context_id, task_id)
+                    update_session(agent_url, result.context_id, result.task_id)
+                    _format_send_result(result, output)
 
-                    if parsed.has_content:
-                        log.debug("Response contains %d characters", len(parsed.text))
-                        print_markdown(parsed.text, title="Response")
-                    else:
-                        log.warning("Response contained no text content")
-                        print_markdown("No text in response", title="Response")
-
-        except A2AClientTimeoutError:
-            log.error("Request to %s timed out", agent_url)
-            print_error("Request timed out")
-            raise click.Abort()
-        except A2AClientHTTPError as e:
-            log.error("A2A client error: %s", e)
-            if "connection" in str(e).lower():
-                print_error(f"Connection failed: Is the server running at {agent_url}?")
-            else:
-                print_error(str(e))
-            raise click.Abort()
-        except A2AClientError as e:
-            log.error("A2A client error: %s", e)
-            print_error(str(e))
-            raise click.Abort()
-        except httpx.ConnectError:
-            log.error("Connection refused to %s", agent_url)
-            print_error(f"Connection refused: Is the server running at {agent_url}?")
-            raise click.Abort()
-        except httpx.TimeoutException:
-            log.error("Request to %s timed out", agent_url)
-            print_error("Request timed out")
-            raise click.Abort()
-        except httpx.HTTPStatusError as e:
-            log.error(
-                "HTTP error %d from %s: %s",
-                e.response.status_code,
-                agent_url,
-                e.response.text,
-            )
-            print_error(f"HTTP {e.response.status_code} - {e.response.text}")
-            raise click.Abort()
         except Exception as e:
-            log.exception("Failed to send message to %s", agent_url)
-            print_error(str(e))
+            _handle_client_error(e, agent_url)
             raise click.Abort()
 
     asyncio.run(send_msg())
+
+
+@cli.group()
+def tasks() -> None:
+    """Manage A2A tasks."""
+    pass
+
+
+@tasks.command("get")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.option(
+    "--history-length",
+    "-n",
+    type=int,
+    default=None,
+    help="Number of history messages to include",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def tasks_get(
+    agent_url: str,
+    task_id: str,
+    history_length: Optional[int],
+    output: str,
+) -> None:
+    """Get the status of a task by TASK_ID."""
+    log.info("Getting task %s from %s", task_id, agent_url)
+
+    async def get_task() -> None:
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+                result = await service.get_task(task_id, history_length)
+                _format_task_result(result, output)
+
+        except Exception as e:
+            _handle_client_error(e, agent_url)
+            raise click.Abort()
+
+    asyncio.run(get_task())
+
+
+@tasks.command("cancel")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def tasks_cancel(
+    agent_url: str,
+    task_id: str,
+    output: str,
+) -> None:
+    """Cancel a running task by TASK_ID."""
+    log.info("Canceling task %s at %s", task_id, agent_url)
+
+    async def cancel_task() -> None:
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+
+                if output == "text":
+                    console.print(f"[dim]Canceling task {task_id}...[/dim]")
+
+                result = await service.cancel_task(task_id)
+                _format_task_result(result, output)
+
+                if output == "text":
+                    console.print("[green]Task canceled successfully[/green]")
+
+        except Exception as e:
+            _handle_client_error(e, agent_url)
+            raise click.Abort()
+
+    asyncio.run(cancel_task())
+
+
+@tasks.command("resubscribe")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def tasks_resubscribe(
+    agent_url: str,
+    task_id: str,
+    output: str,
+) -> None:
+    """Resubscribe to a task's event stream by TASK_ID.
+
+    This resumes streaming for a task that you previously disconnected from.
+    """
+    log.info("Resubscribing to task %s at %s", task_id, agent_url)
+
+    async def resubscribe() -> None:
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+
+                if output == "text":
+                    console.print(f"[dim]Resubscribing to task {task_id}...[/dim]")
+
+                async for event in service.resubscribe(task_id):
+                    if output == "json":
+                        event_data = {
+                            "type": event.event_type,
+                            "context_id": event.context_id,
+                            "task_id": event.task_id,
+                            "state": event.state.value if event.state else None,
+                            "text": event.text,
+                        }
+                        print_json(json.dumps(event_data))
+                    else:
+                        if event.event_type == "status":
+                            console.print(
+                                f"[dim]Status:[/dim] {event.state.value if event.state else 'unknown'}"
+                            )
+                        elif event.text:
+                            console.print(event.text, markup=False)
+
+        except Exception as e:
+            _handle_client_error(e, agent_url)
+            raise click.Abort()
+
+    asyncio.run(resubscribe())
+
+
+@cli.group()
+def push() -> None:
+    """Manage push notification configurations."""
+    pass
+
+
+@push.command("set")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.option("--url", "-u", required=True, help="Webhook URL to receive notifications")
+@click.option("--token", "-t", help="Optional authentication token")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def push_set(
+    agent_url: str,
+    task_id: str,
+    url: str,
+    token: Optional[str],
+    output: str,
+) -> None:
+    """Set push notification config for a task.
+
+    Configure the agent to send push notifications to a webhook URL
+    when task status changes.
+
+    Example:
+        handler push set http://localhost:8000 TASK_ID --url http://localhost:9000/webhook
+    """
+    log.info("Setting push config for task %s at %s", task_id, agent_url)
+
+    async def set_push() -> None:
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+
+                if output == "text":
+                    console.print(
+                        f"[dim]Setting push notification config for task {task_id}...[/dim]"
+                    )
+
+                config = await service.set_push_config(task_id, url, token)
+
+                if output == "json":
+                    print_json(config.model_dump_json(indent=2))
+                else:
+                    console.print(
+                        "[green]Push notification config set successfully[/green]"
+                    )
+                    console.print(f"[bold]Task ID:[/bold] {task_id}")
+                    console.print(f"[bold]Webhook URL:[/bold] {url}")
+                    if token:
+                        console.print(f"[bold]Token:[/bold] {token[:20]}...")
+
+        except Exception as e:
+            _handle_client_error(e, agent_url)
+            raise click.Abort()
+
+    asyncio.run(set_push())
+
+
+@push.command("get")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.argument("config_id")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def push_get(
+    agent_url: str,
+    task_id: str,
+    config_id: str,
+    output: str,
+) -> None:
+    """Get push notification config for a task."""
+    log.info("Getting push config %s for task %s at %s", config_id, task_id, agent_url)
+
+    async def get_push() -> None:
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+                config = await service.get_push_config(task_id, config_id)
+
+                if output == "json":
+                    print_json(config.model_dump_json(indent=2))
+                else:
+                    console.print("[bold]Push Notification Config[/bold]")
+                    console.print(f"[bold]Task ID:[/bold] {config.task_id}")
+                    if config.push_notification_config:
+                        pnc = config.push_notification_config
+                        console.print(f"[bold]URL:[/bold] {pnc.url}")
+                        if pnc.token:
+                            console.print(f"[bold]Token:[/bold] {pnc.token[:20]}...")
+
+        except Exception as e:
+            _handle_client_error(e, agent_url)
+            raise click.Abort()
+
+    asyncio.run(get_push())
+
+
+@cli.command()
+@click.option("--host", default="127.0.0.1", help="Host to bind to", show_default=True)
+@click.option("--port", default=9000, help="Port to bind to", show_default=True)
+def webhook(host: str, port: int) -> None:
+    """Start a local webhook server to receive push notifications.
+
+    This starts a simple HTTP server that receives and displays
+    push notifications from A2A agents. Useful for testing.
+
+    Example:
+        handler webhook --port 9000
+        # Then use http://localhost:9000/webhook as your push notification URL
+    """
+    log.info("Starting webhook server on %s:%d", host, port)
+    run_webhook_server(host, port)
+
+
+@cli.group()
+def session() -> None:
+    """Manage saved session state."""
+    pass
+
+
+@session.command("list")
+def session_list() -> None:
+    """List all saved sessions."""
+    store = get_session_store()
+    sessions = store.list_all()
+
+    if not sessions:
+        console.print("[dim]No saved sessions[/dim]")
+        return
+
+    console.print(f"[bold]Saved Sessions ({len(sessions)}):[/bold]")
+    console.print()
+    for s in sessions:
+        console.print(f"[bold cyan]{s.agent_url}[/bold cyan]")
+        if s.context_id:
+            console.print(f"  [dim]Context ID:[/dim] {s.context_id}")
+        if s.task_id:
+            console.print(f"  [dim]Task ID:[/dim] {s.task_id}")
+
+
+@session.command("show")
+@click.argument("agent_url")
+def session_show(agent_url: str) -> None:
+    """Show session for a specific agent."""
+    s = get_session(agent_url)
+    console.print(f"[bold]Session for {agent_url}[/bold]")
+    console.print(f"[bold]Context ID:[/bold] {s.context_id or '[dim]none[/dim]'}")
+    console.print(f"[bold]Task ID:[/bold] {s.task_id or '[dim]none[/dim]'}")
+
+
+@session.command("clear")
+@click.argument("agent_url", required=False)
+@click.option("--all", "-a", "clear_all", is_flag=True, help="Clear all sessions")
+def session_clear(agent_url: Optional[str], clear_all: bool) -> None:
+    """Clear saved session(s).
+
+    Provide AGENT_URL to clear a specific session, or use --all to clear all.
+    """
+    if clear_all:
+        clear_session()
+        console.print("[green]Cleared all sessions[/green]")
+    elif agent_url:
+        clear_session(agent_url)
+        console.print(f"[green]Cleared session for {agent_url}[/green]")
+    else:
+        console.print(
+            "[yellow]Provide AGENT_URL or use --all to clear sessions[/yellow]"
+        )
 
 
 @cli.command()

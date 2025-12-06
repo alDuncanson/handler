@@ -1,20 +1,16 @@
-"""A2A protocol client utilities."""
+"""A2A protocol client utilities.
 
-import uuid
+This module provides backwards-compatible functions that wrap A2AService.
+For new code, use A2AService directly.
+"""
+
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from a2a.client import A2ACardResolver, ClientConfig, ClientFactory
-from a2a.types import (
-    AgentCard,
-    Message,
-    Part,
-    Role,
-    TextPart,
-    TransportProtocol,
-)
+from a2a.types import AgentCard
 
+from a2a_handler.a2a_service import A2AService
 from a2a_handler.common import get_logger
 
 log = get_logger(__name__)
@@ -47,35 +43,8 @@ async def fetch_agent_card(agent_url: str, client: httpx.AsyncClient) -> AgentCa
     Raises:
         httpx.RequestError: If the request fails
     """
-    log.info("Fetching agent card from [url]%s[/url]", agent_url)
-    resolver = A2ACardResolver(client, agent_url)
-    card = await resolver.get_agent_card()
-    log.info("Received card for [agent]%s[/agent]", card.name)
-    return card
-
-
-def _build_message(
-    message_text: str,
-    context_id: str | None = None,
-    task_id: str | None = None,
-) -> Message:
-    """Build a message object.
-
-    Args:
-        message_text: The message content
-        context_id: Optional context ID for conversation continuity
-        task_id: Optional task ID to reference
-
-    Returns:
-        A properly formatted message
-    """
-    return Message(
-        message_id=str(uuid.uuid4()),
-        role=Role.user,
-        parts=[Part(TextPart(text=message_text))],
-        context_id=context_id,
-        task_id=task_id,
-    )
+    service = A2AService(client, agent_url)
+    return await service.get_card()
 
 
 async def send_message_to_agent(
@@ -101,33 +70,9 @@ async def send_message_to_agent(
         httpx.RequestError: If the request fails
         httpx.TimeoutException: If the request times out
     """
-    log.info("Sending message to [url]%s[/url]: %s", agent_url, message_text[:50])
-    card = await fetch_agent_card(agent_url, client)
-    log.debug("Connected to [agent]%s[/agent]", card.name)
-
-    config = ClientConfig(
-        httpx_client=client, supported_transports=[TransportProtocol.jsonrpc]
-    )
-    factory = ClientFactory(config)
-    a2a_client = factory.create(card)
-
-    message = _build_message(message_text, context_id, task_id)
-
-    log.debug("Sending request with ID: %s", message.message_id)
-
-    last_response = None
-    async for response in a2a_client.send_message(message):
-        last_response = response
-
-    log.debug("Received response")
-
-    if last_response is None:
-        return {}
-
-    if isinstance(last_response, tuple):
-        return last_response[0].model_dump()
-
-    return last_response.model_dump() if hasattr(last_response, "model_dump") else {}
+    service = A2AService(client, agent_url)
+    result = await service.send(message_text, context_id, task_id)
+    return result.raw
 
 
 @dataclass
@@ -136,6 +81,8 @@ class ParsedResponse:
 
     text: str
     raw: dict[str, Any]
+    context_id: str | None = None
+    task_id: str | None = None
 
     @property
     def has_content(self) -> bool:
@@ -157,17 +104,44 @@ def parse_response(response: dict[str, Any]) -> ParsedResponse:
         return ParsedResponse(text="", raw=response)
 
     texts: list[str] = []
+    context_id = response.get("context_id")
+    task_id = response.get("id") or response.get("task_id")
 
     if "parts" in response:
-        texts.extend(p.get("text", "") for p in response["parts"])
+        for p in response["parts"]:
+            if isinstance(p, dict):
+                if "root" in p and isinstance(p["root"], dict):
+                    texts.append(p["root"].get("text", ""))
+                else:
+                    texts.append(p.get("text", ""))
         log.debug("Extracted %d parts from response", len(response["parts"]))
 
     for artifact in response.get("artifacts", []):
         artifact_parts = artifact.get("parts", [])
-        texts.extend(p.get("text", "") for p in artifact_parts)
+        for p in artifact_parts:
+            if isinstance(p, dict):
+                if "root" in p and isinstance(p["root"], dict):
+                    texts.append(p["root"].get("text", ""))
+                else:
+                    texts.append(p.get("text", ""))
         log.debug("Extracted %d parts from artifact", len(artifact_parts))
+
+    if "history" in response:
+        for msg in response["history"]:
+            if msg.get("role") == "agent":
+                for p in msg.get("parts", []):
+                    if isinstance(p, dict):
+                        if "root" in p and isinstance(p["root"], dict):
+                            texts.append(p["root"].get("text", ""))
+                        else:
+                            texts.append(p.get("text", ""))
 
     text = "\n".join(t for t in texts if t)
     log.debug("Parsed response with %d characters", len(text))
 
-    return ParsedResponse(text=text, raw=response)
+    return ParsedResponse(
+        text=text,
+        raw=response,
+        context_id=context_id,
+        task_id=task_id,
+    )
