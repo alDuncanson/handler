@@ -4,6 +4,7 @@ import os
 
 import click
 import uvicorn
+from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from dotenv import load_dotenv
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents.llm_agent import Agent
@@ -61,6 +62,44 @@ You are proud to be an A2A server agent.""",
     return agent
 
 
+def build_agent_card(agent: Agent, host: str, port: int) -> AgentCard:
+    """Build an AgentCard with streaming and push notification capabilities.
+
+    Args:
+        agent: The ADK agent
+        host: Host address for the RPC URL
+        port: Port number for the RPC URL
+
+    Returns:
+        Configured AgentCard with capabilities enabled
+    """
+    capabilities = AgentCapabilities(
+        streaming=True,
+        push_notifications=True,
+    )
+
+    skill = AgentSkill(
+        id="handler_assistant",
+        name="Handler Assistant",
+        description="Answers questions about the Handler A2A toolkit and helps with usage",
+        tags=["a2a", "handler", "help"],
+        examples=["What is Handler?", "How do I use the CLI?", "Tell me about A2A"],
+    )
+
+    rpc_url = f"http://{host}:{port}/"
+
+    return AgentCard(
+        name=agent.name,
+        description=agent.description or "Handler A2A agent",
+        url=rpc_url,
+        version="1.0.0",
+        capabilities=capabilities,
+        skills=[skill],
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+    )
+
+
 def run_server(host: str, port: int) -> None:
     """Start the A2A server agent.
 
@@ -73,7 +112,17 @@ def run_server(host: str, port: int) -> None:
     )
     log.info("Initializing A2A server...")
     agent = create_agent()
-    a2a_app = to_a2a(agent, host=host, port=port)
+
+    agent_card = build_agent_card(agent, host, port)
+    log.info(
+        "Agent card capabilities: streaming=%s, push_notifications=%s",
+        agent_card.capabilities.streaming if agent_card.capabilities else False,
+        agent_card.capabilities.push_notifications
+        if agent_card.capabilities
+        else False,
+    )
+
+    a2a_app = to_a2a(agent, host=host, port=port, agent_card=agent_card)
     uvicorn.run(a2a_app, host=host, port=port)
 
 
