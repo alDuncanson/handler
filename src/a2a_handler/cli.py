@@ -39,6 +39,10 @@ click.rich_click.OPTION_GROUPS = {
             "options": ["--stream", "--continue", "--context-id", "--task-id"],
         },
         {
+            "name": "Push Notification Options",
+            "options": ["--push-url", "--push-token"],
+        },
+        {
             "name": "Output Options",
             "options": ["--output", "--help"],
         },
@@ -470,6 +474,15 @@ def validate(source: str, output: str) -> None:
     help="Continue last conversation (use saved context_id)",
 )
 @click.option(
+    "--push-url",
+    "-p",
+    help="Webhook URL to receive push notifications for this task",
+)
+@click.option(
+    "--push-token",
+    help="Optional authentication token for push notifications",
+)
+@click.option(
     "--output",
     "-o",
     type=click.Choice(["json", "text"]),
@@ -483,12 +496,15 @@ def send(
     context_id: Optional[str],
     task_id: Optional[str],
     use_session: bool,
+    push_url: Optional[str],
+    push_token: Optional[str],
     output: str,
 ) -> None:
     """Send MESSAGE to an agent at AGENT_URL.
 
     Use --stream to receive responses in real-time via Server-Sent Events.
     Use --continue to automatically use the last context_id from previous conversation.
+    Use --push-url to configure push notifications for task updates.
     """
     log.info("Sending message to %s", agent_url)
     log.debug("Message: %s", message[:100] if len(message) > 100 else message)
@@ -507,10 +523,18 @@ def send(
     async def send_msg() -> None:
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url, streaming=stream)
+                service = A2AService(
+                    http_client,
+                    agent_url,
+                    streaming=stream,
+                    push_notification_url=push_url,
+                    push_notification_token=push_token,
+                )
 
                 if output == "text":
                     console.print(f"[dim]Sending message to {agent_url}...[/dim]")
+                    if push_url:
+                        console.print(f"[dim]Push notifications: {push_url}[/dim]")
 
                 if stream:
                     log.debug("Using streaming mode")

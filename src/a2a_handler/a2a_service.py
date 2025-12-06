@@ -14,6 +14,7 @@ from a2a.types import (
     GetTaskPushNotificationConfigParams,
     Message,
     Part,
+    PushNotificationConfig,
     Role,
     Task,
     TaskArtifactUpdateEvent,
@@ -127,6 +128,8 @@ class A2AService:
         http_client: httpx.AsyncClient,
         agent_url: str,
         streaming: bool = True,
+        push_notification_url: str | None = None,
+        push_notification_token: str | None = None,
     ):
         """Initialize the A2A service.
 
@@ -134,10 +137,14 @@ class A2AService:
             http_client: Async HTTP client to use for requests
             agent_url: Base URL of the A2A agent
             streaming: Whether to prefer streaming when available
+            push_notification_url: Optional webhook URL for push notifications
+            push_notification_token: Optional token for push notification auth
         """
         self.http_client = http_client
         self.agent_url = agent_url
         self.streaming = streaming
+        self.push_notification_url = push_notification_url
+        self.push_notification_token = push_notification_token
         self._client: Client | None = None
         self._card: AgentCard | None = None
 
@@ -162,10 +169,20 @@ class A2AService:
         """
         if self._client is None:
             card = await self.get_card()
+            push_configs: list[PushNotificationConfig] = []
+            if self.push_notification_url:
+                push_configs.append(
+                    PushNotificationConfig(
+                        url=self.push_notification_url,
+                        token=self.push_notification_token,
+                    )
+                )
+                log.info("Push notification config: %s", self.push_notification_url)
             config = ClientConfig(
                 httpx_client=self.http_client,
                 supported_transports=[TransportProtocol.jsonrpc],
                 streaming=self.streaming,
+                push_notification_configs=push_configs,
             )
             factory = ClientFactory(config)
             self._client = factory.create(card)
