@@ -54,7 +54,7 @@ click.rich_click.COMMAND_GROUPS = {
     "handler": [
         {
             "name": "Agent Commands",
-            "commands": ["card", "send"],
+            "commands": ["card", "send", "validate"],
         },
         {
             "name": "Interface Commands",
@@ -83,6 +83,11 @@ from a2a_handler.client import (  # noqa: E402
 )
 from a2a_handler.server import run_server  # noqa: E402
 from a2a_handler.tui import HandlerTUI  # noqa: E402
+from a2a_handler.validation import (  # noqa: E402
+    ValidationResult,
+    validate_agent_card_from_file,
+    validate_agent_card_from_url,
+)
 
 log = get_logger(__name__)
 
@@ -272,6 +277,101 @@ def card(agent_url: str, output: str) -> None:
             raise click.Abort()
 
     asyncio.run(fetch())
+
+
+def _format_validation_result(result: ValidationResult, output: str) -> None:
+    """Format and print validation result."""
+    if output == "json":
+        import json
+
+        output_data = {
+            "valid": result.valid,
+            "source": result.source,
+            "sourceType": result.source_type.value,
+            "agentName": result.agent_name,
+            "protocolVersion": result.protocol_version,
+            "issues": [
+                {"field": i.field, "message": i.message, "type": i.issue_type}
+                for i in result.issues
+            ],
+            "warnings": [
+                {"field": w.field, "message": w.message, "type": w.issue_type}
+                for w in result.warnings
+            ],
+        }
+        print_json(json.dumps(output_data, indent=2))
+        return
+
+    if result.valid:
+        title = "[bold green]✓ Valid Agent Card[/bold green]"
+        content_parts = [
+            f"[bold]Agent:[/bold] {result.agent_name}",
+            f"[bold]Protocol Version:[/bold] {result.protocol_version}",
+            f"[bold]Source:[/bold] {result.source}",
+        ]
+
+        if result.warnings:
+            content_parts.append("")
+            content_parts.append(
+                f"[bold yellow]Warnings ({len(result.warnings)}):[/bold yellow]"
+            )
+            for warning in result.warnings:
+                content_parts.append(
+                    f"  [yellow]⚠[/yellow] {warning.field}: {warning.message}"
+                )
+
+        print_panel("\n".join(content_parts), title=title)
+    else:
+        title = "[bold red]✗ Invalid Agent Card[/bold red]"
+        content_parts = [
+            f"[bold]Source:[/bold] {result.source}",
+            "",
+            f"[bold red]Errors ({len(result.issues)}):[/bold red]",
+        ]
+
+        for issue in result.issues:
+            content_parts.append(f"  [red]✗[/red] {issue.field}: {issue.message}")
+
+        print_panel("\n".join(content_parts), title=title)
+
+
+@cli.command()
+@click.argument("source")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    help="Output format",
+)
+def validate(source: str, output: str) -> None:
+    """Validate an agent card from a URL or file path.
+
+    SOURCE can be either:
+    - A URL (e.g., http://localhost:8000)
+    - A file path (e.g., ./agent-card.json)
+
+    The command will automatically detect whether the source is a URL or file.
+    """
+    log.info("Validating agent card from %s", source)
+
+    is_url = source.startswith(("http://", "https://"))
+
+    async def do_validate() -> None:
+        if is_url:
+            log.debug("Detected URL source")
+            async with build_http_client() as client:
+                result = await validate_agent_card_from_url(source, client)
+        else:
+            log.debug("Detected file source")
+            result = validate_agent_card_from_file(source)
+
+        _format_validation_result(result, output)
+
+        if not result.valid:
+            raise click.Abort()
+
+    asyncio.run(do_validate())
 
 
 @cli.command()
