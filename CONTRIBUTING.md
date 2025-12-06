@@ -6,8 +6,9 @@ Handler is a single Python package (`a2a-handler`) with all modules under `src/a
 
 | Module | Description |
 |--------|-------------|
-| `cli.py` | CLI built with `click`. Entry point: `handler` |
+| `cli.py` | CLI built with `rich-click`. Entry point: `handler` |
 | `client.py` | A2A protocol client library using `a2a-sdk` |
+| `validation.py` | Agent card validation utilities |
 | `common/` | Shared utilities (logging, printing with `rich`) |
 | `server.py` | Reference A2A agent using `google-adk` + `litellm` |
 | `tui.py` | TUI application built with `textual` |
@@ -43,6 +44,7 @@ just install  # or: uv sync
 | `just console` | Run Textual devtools console |
 | `just get-card [url]` | Fetch agent card from URL |
 | `just send [url] [msg]` | Send message to agent |
+| `just validate [source]` | Validate agent card from URL or file |
 | `just version` | Show current version |
 | `just bump [level]` | Bump version (patch, minor, major) |
 | `just tag` | Create git tag for current version |

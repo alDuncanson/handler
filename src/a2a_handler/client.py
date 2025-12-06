@@ -1,6 +1,7 @@
 """A2A protocol client utilities."""
 
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -127,3 +128,46 @@ async def send_message_to_agent(
         return last_response[0].model_dump()
 
     return last_response.model_dump() if hasattr(last_response, "model_dump") else {}
+
+
+@dataclass
+class ParsedResponse:
+    """Parsed A2A response with extracted text content."""
+
+    text: str
+    raw: dict[str, Any]
+
+    @property
+    def has_content(self) -> bool:
+        """Check if the response has meaningful content."""
+        return bool(self.text)
+
+
+def parse_response(response: dict[str, Any]) -> ParsedResponse:
+    """Parse an A2A response and extract text content.
+
+    Args:
+        response: Raw response dictionary from send_message_to_agent
+
+    Returns:
+        ParsedResponse with extracted text and raw data
+    """
+    if not response:
+        log.debug("Empty response received")
+        return ParsedResponse(text="", raw=response)
+
+    texts: list[str] = []
+
+    if "parts" in response:
+        texts.extend(p.get("text", "") for p in response["parts"])
+        log.debug("Extracted %d parts from response", len(response["parts"]))
+
+    for artifact in response.get("artifacts", []):
+        artifact_parts = artifact.get("parts", [])
+        texts.extend(p.get("text", "") for p in artifact_parts)
+        log.debug("Extracted %d parts from artifact", len(artifact_parts))
+
+    text = "\n".join(t for t in texts if t)
+    log.debug("Parsed response with %d characters", len(text))
+
+    return ParsedResponse(text=text, raw=response)

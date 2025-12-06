@@ -54,16 +54,44 @@ handler tui
 
 ### CLI
 
+#### Global Options
+
+```bash
+handler --verbose  # Enable verbose logging output
+handler --debug    # Enable debug logging output
+handler --help     # Show help for any command
+```
+
+#### Commands
+
 Fetch agent card from A2A server:
 
 ```bash
 handler card http://localhost:8000
+handler card http://localhost:8000 --output json  # JSON output
+```
+
+Validate an agent card from a URL or file:
+
+```bash
+handler validate http://localhost:8000             # Validate from URL
+handler validate ./agent-card.json                 # Validate from file
+handler validate http://localhost:8000 --output json  # JSON output
 ```
 
 Send a message to an A2A agent:
 
 ```bash
 handler send http://localhost:8000 "Hello World"
+handler send http://localhost:8000 "Hello" --output json    # JSON output
+handler send http://localhost:8000 "Hello" --context-id abc # Conversation continuity
+handler send http://localhost:8000 "Hello" --task-id xyz    # Reference existing task
+```
+
+Show version:
+
+```bash
+handler version
 ```
 
 ## Contributing
