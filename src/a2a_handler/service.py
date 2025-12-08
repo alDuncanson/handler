@@ -96,10 +96,8 @@ def extract_text_from_message_parts(message_parts: list[Part] | None) -> str:
 
     extracted_texts = []
     for part in message_parts:
-        if hasattr(part, "root") and hasattr(part.root, "text"):
+        if isinstance(part.root, TextPart):
             extracted_texts.append(part.root.text)
-        elif hasattr(part, "text"):
-            extracted_texts.append(part.text)
 
     return "\n".join(text for text in extracted_texts if text)
 
