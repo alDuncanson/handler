@@ -3,8 +3,17 @@ import json
 import logging
 from typing import Any, Optional
 
+# Suppress noisy third-party debug logs during import
+logging.getLogger().setLevel(logging.WARNING)
+
 import httpx
 import rich_click as click
+
+from a2a.client.errors import (
+    A2AClientError,
+    A2AClientHTTPError,
+    A2AClientTimeoutError,
+)
 
 from a2a_handler import __version__
 from a2a_handler.common import (
@@ -16,6 +25,21 @@ from a2a_handler.common import (
     print_panel,
     setup_logging,
 )
+from a2a_handler.server import run_server
+from a2a_handler.service import A2AService, SendResult, TaskResult
+from a2a_handler.session import (
+    clear_session,
+    get_session,
+    get_session_store,
+    update_session,
+)
+from a2a_handler.tui import HandlerTUI
+from a2a_handler.validation import (
+    ValidationResult,
+    validate_agent_card_from_file,
+    validate_agent_card_from_url,
+)
+from a2a_handler.webhook import run_webhook_server
 
 click.rich_click.USE_RICH_MARKUP = True
 click.rich_click.USE_MARKDOWN = True
@@ -94,30 +118,6 @@ click.rich_click.COMMAND_GROUPS = {
         },
     ],
 }
-
-setup_logging(level="WARNING")
-
-from a2a.client.errors import (  # noqa: E402
-    A2AClientError,
-    A2AClientHTTPError,
-    A2AClientTimeoutError,
-)
-
-from a2a_handler.server import run_server  # noqa: E402
-from a2a_handler.service import A2AService, SendResult, TaskResult  # noqa: E402
-from a2a_handler.session import (  # noqa: E402
-    clear_session,
-    get_session,
-    get_session_store,
-    update_session,
-)
-from a2a_handler.tui import HandlerTUI  # noqa: E402
-from a2a_handler.validation import (  # noqa: E402
-    ValidationResult,
-    validate_agent_card_from_file,
-    validate_agent_card_from_url,
-)
-from a2a_handler.webhook import run_webhook_server  # noqa: E402
 
 TIMEOUT = 120
 

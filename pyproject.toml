@@ -69,3 +69,6 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = "src"
+
+[tool.ruff.lint.per-file-ignores]
+"src/a2a_handler/cli.py" = ["E402"]
