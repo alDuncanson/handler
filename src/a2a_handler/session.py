@@ -10,10 +10,10 @@ from typing import Any
 
 from a2a_handler.common import get_logger
 
-log = get_logger(__name__)
+logger = get_logger(__name__)
 
-DEFAULT_SESSION_DIR = Path.home() / ".handler"
-SESSION_FILE = "sessions.json"
+DEFAULT_SESSION_DIRECTORY = Path.home() / ".handler"
+SESSION_FILENAME = "sessions.json"
 
 
 @dataclass
@@ -41,64 +41,72 @@ class SessionStore:
     """Persistent store for agent sessions."""
 
     sessions: dict[str, AgentSession] = field(default_factory=dict)
-    session_dir: Path = field(default_factory=lambda: DEFAULT_SESSION_DIR)
+    session_directory: Path = field(default_factory=lambda: DEFAULT_SESSION_DIRECTORY)
 
     @property
-    def session_file(self) -> Path:
+    def session_file_path(self) -> Path:
         """Path to the session file."""
-        return self.session_dir / SESSION_FILE
+        return self.session_directory / SESSION_FILENAME
 
-    def _ensure_dir(self) -> None:
+    def _ensure_directory_exists(self) -> None:
         """Ensure the session directory exists."""
-        self.session_dir.mkdir(parents=True, exist_ok=True)
+        self.session_directory.mkdir(parents=True, exist_ok=True)
 
     def load(self) -> None:
         """Load sessions from disk."""
-        if not self.session_file.exists():
-            log.debug("No session file found at %s", self.session_file)
+        if not self.session_file_path.exists():
+            logger.debug("No session file found at %s", self.session_file_path)
             return
 
         try:
-            with open(self.session_file) as f:
-                data = json.load(f)
+            with open(self.session_file_path) as session_file:
+                session_data = json.load(session_file)
 
-            for url, session_data in data.items():
-                self.sessions[url] = AgentSession(
-                    agent_url=url,
-                    context_id=session_data.get("context_id"),
-                    task_id=session_data.get("task_id"),
+            for agent_url, agent_session_data in session_data.items():
+                self.sessions[agent_url] = AgentSession(
+                    agent_url=agent_url,
+                    context_id=agent_session_data.get("context_id"),
+                    task_id=agent_session_data.get("task_id"),
                 )
-            log.debug(
-                "Loaded %d sessions from %s", len(self.sessions), self.session_file
+
+            logger.debug(
+                "Loaded %d sessions from %s",
+                len(self.sessions),
+                self.session_file_path,
             )
 
-        except json.JSONDecodeError as e:
-            log.warning("Failed to parse session file: %s", e)
-        except OSError as e:
-            log.warning("Failed to read session file: %s", e)
+        except json.JSONDecodeError as error:
+            logger.warning("Failed to parse session file: %s", error)
+        except OSError as error:
+            logger.warning("Failed to read session file: %s", error)
 
     def save(self) -> None:
         """Save sessions to disk."""
-        self._ensure_dir()
+        self._ensure_directory_exists()
 
-        data: dict[str, Any] = {}
-        for url, session in self.sessions.items():
-            data[url] = {
-                "context_id": session.context_id,
-                "task_id": session.task_id,
+        session_data: dict[str, Any] = {}
+        for agent_url, agent_session in self.sessions.items():
+            session_data[agent_url] = {
+                "context_id": agent_session.context_id,
+                "task_id": agent_session.task_id,
             }
 
         try:
-            with open(self.session_file, "w") as f:
-                json.dump(data, f, indent=2)
-            log.debug("Saved %d sessions to %s", len(self.sessions), self.session_file)
-        except OSError as e:
-            log.warning("Failed to write session file: %s", e)
+            with open(self.session_file_path, "w") as session_file:
+                json.dump(session_data, session_file, indent=2)
+            logger.debug(
+                "Saved %d sessions to %s",
+                len(self.sessions),
+                self.session_file_path,
+            )
+        except OSError as error:
+            logger.warning("Failed to write session file: %s", error)
 
     def get(self, agent_url: str) -> AgentSession:
         """Get or create a session for an agent URL."""
         if agent_url not in self.sessions:
             self.sessions[agent_url] = AgentSession(agent_url=agent_url)
+            logger.debug("Created new session for %s", agent_url)
         return self.sessions[agent_url]
 
     def update(
@@ -108,10 +116,16 @@ class SessionStore:
         task_id: str | None = None,
     ) -> AgentSession:
         """Update session for an agent and save."""
-        session = self.get(agent_url)
-        session.update(context_id, task_id)
+        agent_session = self.get(agent_url)
+        agent_session.update(context_id, task_id)
         self.save()
-        return session
+        logger.debug(
+            "Updated session for %s: context_id=%s, task_id=%s",
+            agent_url,
+            context_id,
+            task_id,
+        )
+        return agent_session
 
     def clear(self, agent_url: str | None = None) -> None:
         """Clear session(s).
@@ -123,10 +137,11 @@ class SessionStore:
         if agent_url:
             if agent_url in self.sessions:
                 del self.sessions[agent_url]
-                log.info("Cleared session for %s", agent_url)
+                logger.info("Cleared session for %s", agent_url)
         else:
+            session_count = len(self.sessions)
             self.sessions.clear()
-            log.info("Cleared all sessions")
+            logger.info("Cleared all %d sessions", session_count)
         self.save()
 
     def list_all(self) -> list[AgentSession]:
@@ -134,16 +149,17 @@ class SessionStore:
         return list(self.sessions.values())
 
 
-_store: SessionStore | None = None
+_global_session_store: SessionStore | None = None
 
 
 def get_session_store() -> SessionStore:
     """Get the global session store (singleton)."""
-    global _store
-    if _store is None:
-        _store = SessionStore()
-        _store.load()
-    return _store
+    global _global_session_store
+    if _global_session_store is None:
+        _global_session_store = SessionStore()
+        _global_session_store.load()
+        logger.debug("Initialized global session store")
+    return _global_session_store
 
 
 def get_session(agent_url: str) -> AgentSession:

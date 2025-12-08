@@ -56,7 +56,7 @@ class TestValidateAgentCardData:
 
         assert result.valid is False
         assert len(result.issues) > 0
-        field_names = [i.field for i in result.issues]
+        field_names = [issue.field_name for issue in result.issues]
         assert "name" in field_names
 
     def test_warnings_for_optional_fields(self):
@@ -65,7 +65,7 @@ class TestValidateAgentCardData:
         result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
         assert result.valid is True
-        warning_fields = [w.field for w in result.warnings]
+        warning_fields = [warning.field_name for warning in result.warnings]
         assert "provider" in warning_fields
         assert "documentationUrl" in warning_fields
         assert "iconUrl" in warning_fields
@@ -77,8 +77,8 @@ class TestValidateAgentCardData:
         result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
         assert result.valid is False
-        issue_fields = [i.field for i in result.issues]
-        assert any("skills" in f and "tags" in f for f in issue_fields)
+        issue_fields = [issue.field_name for issue in result.issues]
+        assert any("skills" in field and "tags" in field for field in issue_fields)
 
     def test_skill_without_examples_generates_warning(self):
         """Test that skills without examples generate warnings."""
@@ -86,8 +86,8 @@ class TestValidateAgentCardData:
         result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
         assert result.valid is True
-        warning_fields = [w.field for w in result.warnings]
-        assert any("examples" in f for f in warning_fields)
+        warning_fields = [warning.field_name for warning in result.warnings]
+        assert any("examples" in field for field in warning_fields)
 
 
 class TestValidateAgentCardFromFile:

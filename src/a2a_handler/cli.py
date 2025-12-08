@@ -103,13 +103,8 @@ from a2a.client.errors import (  # noqa: E402
     A2AClientTimeoutError,
 )
 
-from a2a_handler.a2a_service import A2AService, SendResult, TaskResult  # noqa: E402
-from a2a_handler.client import (  # noqa: E402
-    build_http_client,
-    fetch_agent_card,
-)
-from a2a_handler.push_server import run_webhook_server  # noqa: E402
 from a2a_handler.server import run_server  # noqa: E402
+from a2a_handler.service import A2AService, SendResult, TaskResult  # noqa: E402
 from a2a_handler.session import (  # noqa: E402
     clear_session,
     get_session,
@@ -122,6 +117,15 @@ from a2a_handler.validation import (  # noqa: E402
     validate_agent_card_from_file,
     validate_agent_card_from_url,
 )
+from a2a_handler.webhook import run_webhook_server  # noqa: E402
+
+TIMEOUT = 120
+
+
+def build_http_client(timeout: int = TIMEOUT) -> httpx.AsyncClient:
+    """Build an HTTP client with the specified timeout."""
+    return httpx.AsyncClient(timeout=timeout)
+
 
 log = get_logger(__name__)
 
@@ -324,7 +328,8 @@ def card(agent_url: str, output: str) -> None:
             log.debug("Building HTTP client")
             async with build_http_client() as client:
                 log.debug("Requesting agent card")
-                card_data = await fetch_agent_card(agent_url, client)
+                service = A2AService(client, agent_url)
+                card_data = await service.get_card()
                 log.info("Retrieved card for agent: %s", card_data.name)
 
                 if output == "json":
@@ -377,12 +382,20 @@ def _format_validation_result(result: ValidationResult, output: str) -> None:
             "agentName": result.agent_name,
             "protocolVersion": result.protocol_version,
             "issues": [
-                {"field": i.field, "message": i.message, "type": i.issue_type}
-                for i in result.issues
+                {
+                    "field": issue.field_name,
+                    "message": issue.message,
+                    "type": issue.issue_type,
+                }
+                for issue in result.issues
             ],
             "warnings": [
-                {"field": w.field, "message": w.message, "type": w.issue_type}
-                for w in result.warnings
+                {
+                    "field": warning.field_name,
+                    "message": warning.message,
+                    "type": warning.issue_type,
+                }
+                for warning in result.warnings
             ],
         }
         print_json(json.dumps(output_data, indent=2))
@@ -403,7 +416,7 @@ def _format_validation_result(result: ValidationResult, output: str) -> None:
             )
             for warning in result.warnings:
                 content_parts.append(
-                    f"  [yellow]⚠[/yellow] {warning.field}: {warning.message}"
+                    f"  [yellow]⚠[/yellow] {warning.field_name}: {warning.message}"
                 )
 
         print_panel("\n".join(content_parts), title=title)
@@ -416,7 +429,7 @@ def _format_validation_result(result: ValidationResult, output: str) -> None:
         ]
 
         for issue in result.issues:
-            content_parts.append(f"  [red]✗[/red] {issue.field}: {issue.message}")
+            content_parts.append(f"  [red]✗[/red] {issue.field_name}: {issue.message}")
 
         print_panel("\n".join(content_parts), title=title)
 
@@ -526,7 +539,7 @@ def send(
                 service = A2AService(
                     http_client,
                     agent_url,
-                    streaming=stream,
+                    enable_streaming=stream,
                     push_notification_url=push_url,
                     push_notification_token=push_token,
                 )

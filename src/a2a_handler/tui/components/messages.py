@@ -1,4 +1,5 @@
-import logging
+"""Messages panel component for chat display."""
+
 from datetime import datetime
 from typing import Any
 
@@ -7,7 +8,9 @@ from textual.binding import Binding
 from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Static
 
-logger = logging.getLogger(__name__)
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
 
 
 class Message(Vertical):
@@ -26,16 +29,16 @@ class Message(Vertical):
         self.timestamp = timestamp or datetime.now()
 
     def compose(self) -> ComposeResult:
-        time_str = self.timestamp.strftime("%H:%M:%S")
+        formatted_time = self.timestamp.strftime("%H:%M:%S")
 
         if self.role == "system":
-            yield Static(f"[dim]{time_str}[/dim] [italic]{self.text}[/italic]")
+            yield Static(f"[dim]{formatted_time}[/dim] [italic]{self.text}[/italic]")
         else:
             role_color = "#88c0d0" if self.role == "agent" else "#bf616a"
-            yield Static(f"[dim]{time_str}[/dim] [{role_color}]{self.text}[/]")
+            yield Static(f"[dim]{formatted_time}[/dim] [{role_color}]{self.text}[/]")
 
 
-class ChatScroll(VerticalScroll):
+class ChatScrollContainer(VerticalScroll):
     """Scrollable chat area."""
 
     can_focus = False
@@ -54,37 +57,39 @@ class MessagesPanel(Container):
     can_focus = True
 
     def compose(self) -> ComposeResult:
-        yield ChatScroll(id="chat")
+        yield ChatScrollContainer(id="chat")
 
     def on_mount(self) -> None:
         self.border_title = "MESSAGES"
+        logger.debug("Messages panel mounted")
 
-    def _get_chat(self) -> ChatScroll:
-        return self.query_one("#chat", ChatScroll)
+    def _get_chat_container(self) -> ChatScrollContainer:
+        return self.query_one("#chat", ChatScrollContainer)
 
     def add_message(self, role: str, content: str) -> None:
         logger.debug("Adding %s message: %s", role, content[:50])
-        chat = self._get_chat()
-        message = Message(role, content)
-        chat.mount(message)
-        chat.scroll_end(animate=False)
+        chat_container = self._get_chat_container()
+        message_widget = Message(role, content)
+        chat_container.mount(message_widget)
+        chat_container.scroll_end(animate=False)
 
     def add_system_message(self, content: str) -> None:
         logger.info("System message: %s", content)
         self.add_message("system", content)
 
     def update_message_count(self) -> None:
-        chat = self._get_chat()
-        self.border_subtitle = f"{len(chat.children)} MESSAGES"
+        chat_container = self._get_chat_container()
+        message_count = len(chat_container.children)
+        self.border_subtitle = f"{message_count} MESSAGES"
 
     async def clear(self) -> None:
-        logger.info("Clearing chat")
-        chat = self._get_chat()
-        await chat.remove_children()
+        logger.info("Clearing chat messages")
+        chat_container = self._get_chat_container()
+        await chat_container.remove_children()
         self.add_system_message("Chat cleared")
 
     def action_scroll_down(self) -> None:
-        self._get_chat().scroll_down()
+        self._get_chat_container().scroll_down()
 
     def action_scroll_up(self) -> None:
-        self._get_chat().scroll_up()
+        self._get_chat_container().scroll_up()

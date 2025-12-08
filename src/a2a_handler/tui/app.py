@@ -1,0 +1,252 @@
+"""Handler TUI application."""
+
+import logging
+import uuid
+from importlib.metadata import version
+from typing import Any
+
+import httpx
+from a2a.types import AgentCard
+from textual import on
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Vertical
+from textual.logging import TextualHandler
+from textual.widgets import Button, Input
+
+from a2a_handler.service import A2AService
+from a2a_handler.tui.components import (
+    AgentCardPanel,
+    ContactPanel,
+    Footer,
+    InputPanel,
+    MessagesPanel,
+)
+
+__version__ = version("a2a-handler")
+
+logging.basicConfig(
+    level="NOTSET",
+    handlers=[TextualHandler()],
+)
+logger = logging.getLogger(__name__)
+
+DEFAULT_HTTP_TIMEOUT_SECONDS = 120
+
+
+def build_http_client(
+    timeout_seconds: int = DEFAULT_HTTP_TIMEOUT_SECONDS,
+) -> httpx.AsyncClient:
+    """Build an HTTP client with the specified timeout."""
+    return httpx.AsyncClient(timeout=timeout_seconds)
+
+
+class HandlerTUI(App[Any]):
+    """Handler - A2A Agent Management Interface."""
+
+    CSS_PATH = "app.tcss"
+
+    BINDINGS = [
+        Binding("ctrl+q", "quit", "Quit", show=True),
+        Binding("ctrl+c", "clear_chat", "Clear", show=True),
+        Binding("ctrl+p", "command_palette", "Palette", show=True),
+    ]
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.current_agent_card: AgentCard | None = None
+        self.http_client: httpx.AsyncClient | None = None
+        self.current_context_id: str | None = None
+        self.current_agent_url: str | None = None
+        self._agent_service: A2AService | None = None
+
+    def compose(self) -> ComposeResult:
+        with Container(id="root-container"):
+            with Vertical(id="left-pane"):
+                yield ContactPanel(id="contact-container", classes="panel")
+                yield AgentCardPanel(id="agent-card-container", classes="panel")
+
+            with Vertical(id="right-pane"):
+                yield MessagesPanel(id="messages-container", classes="panel")
+                yield InputPanel(id="input-container", classes="panel")
+
+        yield Footer(id="footer")
+
+    async def on_mount(self) -> None:
+        logger.info("TUI application starting")
+        self.http_client = build_http_client()
+        self.theme = "gruvbox"
+
+        root_container = self.query_one("#root-container", Container)
+        root_container.border_title = (
+            f"Handler v{__version__} [red]●[/red] Disconnected"
+        )
+
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel.add_system_message(
+            "Welcome! Connect to an agent to start chatting."
+        )
+
+    def watch_theme(self, new_theme: str) -> None:
+        """Called when the app theme changes."""
+        logger.debug("Theme changed to: %s", new_theme)
+        agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+        agent_card_panel.refresh_theme()
+
+    @on(Button.Pressed, "#footer-quit")
+    async def handle_quit_button(self) -> None:
+        await self.action_quit()
+
+    @on(Button.Pressed, "#footer-clear")
+    async def handle_clear_button(self) -> None:
+        await self.action_clear_chat()
+
+    @on(Button.Pressed, "#footer-palette")
+    def handle_palette_button(self) -> None:
+        self.action_command_palette()
+
+    async def _connect_to_agent(self, agent_url: str) -> AgentCard:
+        if not self.http_client:
+            raise RuntimeError("HTTP client not initialized")
+
+        logger.info("Connecting to agent at %s", agent_url)
+        self._agent_service = A2AService(self.http_client, agent_url)
+        return await self._agent_service.get_card()
+
+    def _update_ui_for_connected_state(self, agent_card: AgentCard) -> None:
+        root_container = self.query_one("#root-container", Container)
+        root_container.border_title = (
+            f"Handler v{__version__} [green]●[/green] Connected: {agent_card.name}"
+        )
+
+        agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+        agent_card_panel.update_card(agent_card)
+
+        contact_panel = self.query_one("#contact-container", ContactPanel)
+        contact_panel.set_connected(True)
+
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel.update_message_count()
+
+    def _update_ui_for_disconnected_state(self) -> None:
+        root_container = self.query_one("#root-container", Container)
+        root_container.border_title = (
+            f"Handler v{__version__} [red]●[/red] Disconnected"
+        )
+
+        agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+        agent_card_panel.update_card(None)
+
+        contact_panel = self.query_one("#contact-container", ContactPanel)
+        contact_panel.set_connected(False)
+
+    @on(Button.Pressed, "#connect-btn")
+    async def handle_connect_button(self) -> None:
+        contact_panel = self.query_one("#contact-container", ContactPanel)
+        agent_url = contact_panel.get_url()
+
+        if not agent_url:
+            logger.warning("Connect attempted with empty URL")
+            messages_panel = self.query_one("#messages-container", MessagesPanel)
+            messages_panel.add_system_message("✗ Please enter an agent URL")
+            return
+
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel.add_system_message(f"Connecting to {agent_url}...")
+
+        try:
+            agent_card = await self._connect_to_agent(agent_url)
+
+            self.current_agent_card = agent_card
+            self.current_agent_url = agent_url
+            self.current_context_id = str(uuid.uuid4())
+
+            logger.info("Successfully connected to %s", agent_card.name)
+
+            self._update_ui_for_connected_state(agent_card)
+            messages_panel.add_system_message(f"✓ Connected to {agent_card.name}")
+
+            agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+            agent_card_panel.focus()
+
+        except Exception as error:
+            logger.error("Connection failed: %s", error, exc_info=True)
+            messages_panel.add_system_message(f"✗ Connection failed: {error!s}")
+
+    @on(Button.Pressed, "#disconnect-btn")
+    def handle_disconnect_button(self) -> None:
+        logger.info("Disconnecting from %s", self.current_agent_url)
+        self.current_agent_card = None
+        self.current_agent_url = None
+        self._agent_service = None
+
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel.add_system_message("Disconnected")
+
+        self._update_ui_for_disconnected_state()
+
+    @on(Input.Submitted, "#message-input")
+    async def handle_message_submit(self) -> None:
+        if self.current_agent_url:
+            await self._send_message()
+        else:
+            messages_panel = self.query_one("#messages-container", MessagesPanel)
+            messages_panel.add_system_message("✗ Not connected to an agent")
+
+    @on(Button.Pressed, "#send-btn")
+    async def handle_send_button(self) -> None:
+        if self.current_agent_url:
+            await self._send_message()
+        else:
+            messages_panel = self.query_one("#messages-container", MessagesPanel)
+            messages_panel.add_system_message("✗ Not connected to an agent")
+
+    async def _send_message(self) -> None:
+        if not self.current_agent_url or not self._agent_service:
+            logger.warning("Attempted to send message without connection")
+            messages_panel = self.query_one("#messages-container", MessagesPanel)
+            messages_panel.add_system_message("✗ Not connected to an agent")
+            return
+
+        input_panel = self.query_one("#input-container", InputPanel)
+        message_text = input_panel.get_message()
+
+        if not message_text:
+            return
+
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel.add_message("user", message_text)
+
+        try:
+            logger.info("Sending message: %s", message_text[:50])
+
+            send_result = await self._agent_service.send(
+                message_text,
+                context_id=self.current_context_id,
+            )
+
+            response_text = send_result.text or "No text in response"
+            messages_panel.add_message("agent", response_text)
+
+        except Exception as error:
+            logger.error("Error sending message: %s", error, exc_info=True)
+            messages_panel.add_system_message(f"✗ Error: {error!s}")
+
+    async def action_clear_chat(self) -> None:
+        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        await messages_panel.clear()
+
+    async def on_unmount(self) -> None:
+        logger.info("Shutting down TUI application")
+        if self.http_client:
+            await self.http_client.aclose()
+
+
+def main() -> None:
+    """Entry point for the TUI application."""
+    application = HandlerTUI()
+    application.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,4 +1,4 @@
-from .agent_card import AgentCardPanel
+from .card import AgentCardPanel
 from .contact import ContactPanel
 from .footer import Footer
 from .input import InputPanel

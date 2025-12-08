@@ -9,9 +9,9 @@ import uvicorn
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import (
+    BasePushNotificationSender,
     InMemoryPushNotificationConfigStore,
     InMemoryTaskStore,
-    BasePushNotificationSender,
 )
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from dotenv import load_dotenv
@@ -30,10 +30,14 @@ from starlette.applications import Starlette
 from a2a_handler.common import console, get_logger, setup_logging
 
 setup_logging(level="INFO", suppress_libs=["uvicorn", "google"])
-log = get_logger(__name__)
+logger = get_logger(__name__)
+
+DEFAULT_OLLAMA_API_BASE = "http://localhost:11434"
+DEFAULT_OLLAMA_MODEL = "qwen3"
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30
 
 
-def create_agent() -> Agent:
+def create_llm_agent() -> Agent:
     """Create and configure the A2A test agent using LiteLLM with Ollama.
 
     Returns:
@@ -41,24 +45,24 @@ def create_agent() -> Agent:
     """
     load_dotenv()
 
-    ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen3")
+    ollama_api_base = os.getenv("OLLAMA_API_BASE", DEFAULT_OLLAMA_API_BASE)
+    ollama_model_name = os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
 
-    log.info(
+    logger.info(
         "Creating agent with model: [highlight]%s[/highlight] at [url]%s[/url]",
-        ollama_model,
-        ollama_base,
+        ollama_model_name,
+        ollama_api_base,
     )
 
-    model = LiteLlm(
-        model=f"ollama_chat/{ollama_model}",
-        api_base=ollama_base,
+    language_model = LiteLlm(
+        model=f"ollama_chat/{ollama_model_name}",
+        api_base=ollama_api_base,
         reasoning_effort="none",
     )
 
     agent = Agent(
         name="Handler",
-        model=model,
+        model=language_model,
         description="Handler assistant",
         instruction="""You are Handler, the resident helpful agent for the Handler application.
 You are an expert on the Handler toolkit, which is a terminal-based system for communicating with and testing Agent-to-Agent (A2A) protocol agents.
@@ -73,7 +77,7 @@ If asked about installation, usage, or development, provide clear, concise guida
 You are proud to be an A2A server agent.""",
     )
 
-    log.info(
+    logger.info(
         "[success]Agent created successfully:[/success] [agent]%s[/agent]", agent.name
     )
     return agent
@@ -90,12 +94,12 @@ def build_agent_card(agent: Agent, host: str, port: int) -> AgentCard:
     Returns:
         Configured AgentCard with capabilities enabled
     """
-    capabilities = AgentCapabilities(
+    agent_capabilities = AgentCapabilities(
         streaming=True,
         push_notifications=True,
     )
 
-    skill = AgentSkill(
+    agent_skill = AgentSkill(
         id="handler_assistant",
         name="Handler Assistant",
         description="Answers questions about the Handler A2A toolkit and helps with usage",
@@ -103,15 +107,17 @@ def build_agent_card(agent: Agent, host: str, port: int) -> AgentCard:
         examples=["What is Handler?", "How do I use the CLI?", "Tell me about A2A"],
     )
 
-    rpc_url = f"http://{host}:{port}/"
+    rpc_endpoint_url = f"http://{host}:{port}/"
+
+    logger.debug("Building agent card with RPC URL: %s", rpc_endpoint_url)
 
     return AgentCard(
         name=agent.name,
         description=agent.description or "Handler A2A agent",
-        url=rpc_url,
+        url=rpc_endpoint_url,
         version="1.0.0",
-        capabilities=capabilities,
-        skills=[skill],
+        capabilities=agent_capabilities,
+        skills=[agent_skill],
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
     )
@@ -140,7 +146,7 @@ def create_runner_factory(agent: Agent) -> Callable[[], Awaitable[Runner]]:
     return create_runner
 
 
-def create_a2a_app(agent: Agent, agent_card: AgentCard) -> Starlette:
+def create_a2a_application(agent: Agent, agent_card: AgentCard) -> Starlette:
     """Create a Starlette A2A application with full push notification support.
 
     This is a custom implementation that replaces google-adk's to_a2a() to add
@@ -156,9 +162,11 @@ def create_a2a_app(agent: Agent, agent_card: AgentCard) -> Starlette:
         Configured Starlette application
     """
     task_store = InMemoryTaskStore()
-    push_config_store = InMemoryPushNotificationConfigStore()
-    http_client = httpx.AsyncClient(timeout=30.0)
-    push_sender = BasePushNotificationSender(http_client, push_config_store)
+    push_notification_config_store = InMemoryPushNotificationConfigStore()
+    http_client = httpx.AsyncClient(timeout=DEFAULT_HTTP_TIMEOUT_SECONDS)
+    push_notification_sender = BasePushNotificationSender(
+        http_client, push_notification_config_store
+    )
 
     agent_executor = A2aAgentExecutor(
         runner=create_runner_factory(agent),
@@ -167,28 +175,28 @@ def create_a2a_app(agent: Agent, agent_card: AgentCard) -> Starlette:
     request_handler = DefaultRequestHandler(
         agent_executor=agent_executor,
         task_store=task_store,
-        push_config_store=push_config_store,
-        push_sender=push_sender,
+        push_config_store=push_notification_config_store,
+        push_sender=push_notification_sender,
     )
 
-    app = Starlette()
+    application = Starlette()
 
-    async def setup_a2a() -> None:
-        a2a_app = A2AStarletteApplication(
+    async def setup_a2a_routes() -> None:
+        a2a_starlette_app = A2AStarletteApplication(
             agent_card=agent_card,
             http_handler=request_handler,
         )
-        a2a_app.add_routes_to_app(app)
-        log.info("A2A routes configured with push notification support")
+        a2a_starlette_app.add_routes_to_app(application)
+        logger.info("A2A routes configured with push notification support")
 
-    async def cleanup() -> None:
+    async def cleanup_http_client() -> None:
         await http_client.aclose()
-        log.info("HTTP client closed")
+        logger.info("HTTP client closed")
 
-    app.add_event_handler("startup", setup_a2a)
-    app.add_event_handler("shutdown", cleanup)
+    application.add_event_handler("startup", setup_a2a_routes)
+    application.add_event_handler("shutdown", cleanup_http_client)
 
-    return app
+    return application
 
 
 def run_server(host: str, port: int) -> None:
@@ -201,20 +209,26 @@ def run_server(host: str, port: int) -> None:
     console.print(
         f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
     )
-    log.info("Initializing A2A server with push notification support...")
-    agent = create_agent()
+    logger.info("Initializing A2A server with push notification support...")
 
+    agent = create_llm_agent()
     agent_card = build_agent_card(agent, host, port)
-    log.info(
-        "Agent card capabilities: streaming=%s, push_notifications=%s",
-        agent_card.capabilities.streaming if agent_card.capabilities else False,
-        agent_card.capabilities.push_notifications
-        if agent_card.capabilities
-        else False,
+
+    streaming_enabled = (
+        agent_card.capabilities.streaming if agent_card.capabilities else False
+    )
+    push_notifications_enabled = (
+        agent_card.capabilities.push_notifications if agent_card.capabilities else False
     )
 
-    a2a_app = create_a2a_app(agent, agent_card)
-    uvicorn.run(a2a_app, host=host, port=port)
+    logger.info(
+        "Agent card capabilities: streaming=%s, push_notifications=%s",
+        streaming_enabled,
+        push_notifications_enabled,
+    )
+
+    a2a_application = create_a2a_application(agent, agent_card)
+    uvicorn.run(a2a_application, host=host, port=port)
 
 
 @click.command()

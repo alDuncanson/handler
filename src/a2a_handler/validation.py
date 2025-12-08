@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from a2a_handler.common import get_logger
 
-log = get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class ValidationSource(Enum):
@@ -26,12 +26,12 @@ class ValidationSource(Enum):
 class ValidationIssue:
     """Represents a single validation issue."""
 
-    field: str
+    field_name: str
     message: str
     issue_type: str = "error"
 
     def __str__(self) -> str:
-        return f"[{self.issue_type}] {self.field}: {self.message}"
+        return f"[{self.issue_type}] {self.field_name}: {self.message}"
 
 
 @dataclass
@@ -65,24 +65,26 @@ class ValidationResult:
         return "Unknown"
 
 
-def _parse_pydantic_error(error: ValidationError) -> list[ValidationIssue]:
+def parse_pydantic_validation_errors(
+    validation_error: ValidationError,
+) -> list[ValidationIssue]:
     """Parse Pydantic validation errors into ValidationIssues."""
-    issues = []
-    for err in error.errors():
-        field_path = ".".join(str(loc) for loc in err["loc"])
-        message = err["msg"]
-        issue_type = err["type"]
-        issues.append(
+    validation_issues = []
+    for error_detail in validation_error.errors():
+        field_path = ".".join(str(location) for location in error_detail["loc"])
+        error_message = error_detail["msg"]
+        error_type = error_detail["type"]
+        validation_issues.append(
             ValidationIssue(
-                field=field_path or "root",
-                message=message,
-                issue_type=issue_type,
+                field_name=field_path or "root",
+                message=error_message,
+                issue_type=error_type,
             )
         )
-    return issues
+    return validation_issues
 
 
-def _check_best_practices(card: AgentCard) -> list[ValidationIssue]:
+def check_agent_card_best_practices(agent_card: AgentCard) -> list[ValidationIssue]:
     """Check for best practices and generate warnings.
 
     Note: In A2A v0.3.0, the following are REQUIRED fields and validated by Pydantic:
@@ -92,192 +94,197 @@ def _check_best_practices(card: AgentCard) -> list[ValidationIssue]:
 
     This function only warns about optional fields that improve agent discoverability.
     """
-    warnings = []
+    best_practice_warnings = []
 
-    if not card.provider:
-        warnings.append(
+    if not agent_card.provider:
+        best_practice_warnings.append(
             ValidationIssue(
-                field="provider",
+                field_name="provider",
                 message="Agent card should specify a provider for better discoverability",
                 issue_type="warning",
             )
         )
 
-    if not card.documentation_url:
-        warnings.append(
+    if not agent_card.documentation_url:
+        best_practice_warnings.append(
             ValidationIssue(
-                field="documentationUrl",
+                field_name="documentationUrl",
                 message="Agent card should include documentation URL",
                 issue_type="warning",
             )
         )
 
-    if not card.icon_url:
-        warnings.append(
+    if not agent_card.icon_url:
+        best_practice_warnings.append(
             ValidationIssue(
-                field="iconUrl",
+                field_name="iconUrl",
                 message="Agent card should include an icon URL for UI display",
                 issue_type="warning",
             )
         )
 
-    if card.skills:
-        for i, skill in enumerate(card.skills):
+    if agent_card.skills:
+        for skill_index, skill in enumerate(agent_card.skills):
             if not skill.description:
-                warnings.append(
+                best_practice_warnings.append(
                     ValidationIssue(
-                        field=f"skills[{i}].description",
+                        field_name=f"skills[{skill_index}].description",
                         message=f"Skill '{skill.name}' should have a description",
                         issue_type="warning",
                     )
                 )
             if not skill.examples or len(skill.examples) == 0:
-                warnings.append(
+                best_practice_warnings.append(
                     ValidationIssue(
-                        field=f"skills[{i}].examples",
+                        field_name=f"skills[{skill_index}].examples",
                         message=f"Skill '{skill.name}' should include example prompts",
                         issue_type="warning",
                     )
                 )
 
-    if not card.additional_interfaces or len(card.additional_interfaces) == 0:
-        warnings.append(
+    if (
+        not agent_card.additional_interfaces
+        or len(agent_card.additional_interfaces) == 0
+    ):
+        best_practice_warnings.append(
             ValidationIssue(
-                field="additionalInterfaces",
+                field_name="additionalInterfaces",
                 message="Consider declaring additional transport interfaces for flexibility",
                 issue_type="warning",
             )
         )
 
-    return warnings
+    return best_practice_warnings
 
 
 def validate_agent_card_data(
-    data: dict[str, Any], source: str, source_type: ValidationSource
+    card_data: dict[str, Any],
+    source: str,
+    source_type: ValidationSource,
 ) -> ValidationResult:
     """Validate agent card data against the A2A protocol schema.
 
     Args:
-        data: Raw agent card data as a dictionary
+        card_data: Raw agent card data as a dictionary
         source: The source (URL or file path) of the data
         source_type: Whether the source is a URL or file
 
     Returns:
         ValidationResult with validation status and any issues
     """
-    log.debug("Validating agent card data from %s", source)
+    logger.debug("Validating agent card data from %s", source)
 
     try:
-        card = AgentCard.model_validate(data)
-        log.info("Agent card validation successful for %s", card.name)
+        agent_card = AgentCard.model_validate(card_data)
+        logger.info("Agent card validation successful for %s", agent_card.name)
 
-        warnings = _check_best_practices(card)
+        best_practice_warnings = check_agent_card_best_practices(agent_card)
 
         return ValidationResult(
             valid=True,
             source=source,
             source_type=source_type,
-            agent_card=card,
-            warnings=warnings,
-            raw_data=data,
+            agent_card=agent_card,
+            warnings=best_practice_warnings,
+            raw_data=card_data,
         )
 
-    except ValidationError as e:
-        log.warning("Agent card validation failed: %s", e)
-        issues = _parse_pydantic_error(e)
+    except ValidationError as validation_error:
+        logger.warning("Agent card validation failed: %s", validation_error)
+        validation_issues = parse_pydantic_validation_errors(validation_error)
 
         return ValidationResult(
             valid=False,
             source=source,
             source_type=source_type,
-            issues=issues,
-            raw_data=data,
+            issues=validation_issues,
+            raw_data=card_data,
         )
 
 
 async def validate_agent_card_from_url(
-    url: str,
-    client: httpx.AsyncClient | None = None,
-    card_path: str | None = None,
+    agent_url: str,
+    http_client: httpx.AsyncClient | None = None,
+    agent_card_path: str | None = None,
 ) -> ValidationResult:
     """Fetch and validate an agent card from a URL.
 
     Args:
-        url: The base URL of the agent
-        client: Optional HTTP client to use
-        card_path: Optional custom path to the agent card (default: /.well-known/agent.json)
+        agent_url: The base URL of the agent
+        http_client: Optional HTTP client to use
+        agent_card_path: Optional custom path to the agent card (default: /.well-known/agent.json)
 
     Returns:
         ValidationResult with validation status and any issues
     """
-    log.info("Validating agent card from URL: %s", url)
+    logger.info("Validating agent card from URL: %s", agent_url)
 
-    should_close = client is None
-    if client is None:
-        client = httpx.AsyncClient(timeout=30)
+    should_close_client = http_client is None
+    if http_client is None:
+        http_client = httpx.AsyncClient(timeout=30)
 
     try:
-        base_url = url.rstrip("/")
-        if card_path:
-            full_url = f"{base_url}/{card_path.lstrip('/')}"
+        base_url = agent_url.rstrip("/")
+        if agent_card_path:
+            full_url = f"{base_url}/{agent_card_path.lstrip('/')}"
         else:
             full_url = f"{base_url}/.well-known/agent-card.json"
 
-        log.debug("Fetching agent card from %s", full_url)
-        response = await client.get(full_url)
+        logger.debug("Fetching agent card from %s", full_url)
+        response = await http_client.get(full_url)
         response.raise_for_status()
 
-        data = response.json()
-        return validate_agent_card_data(data, url, ValidationSource.URL)
+        card_data = response.json()
+        return validate_agent_card_data(card_data, agent_url, ValidationSource.URL)
 
-    except httpx.HTTPStatusError as e:
-        log.error("HTTP error fetching agent card: %s", e)
+    except httpx.HTTPStatusError as http_error:
+        logger.error("HTTP error fetching agent card: %s", http_error)
         return ValidationResult(
             valid=False,
-            source=url,
+            source=agent_url,
             source_type=ValidationSource.URL,
             issues=[
                 ValidationIssue(
-                    field="http",
-                    message=f"HTTP {e.response.status_code}: {e.response.text[:200]}",
+                    field_name="http",
+                    message=f"HTTP {http_error.response.status_code}: {http_error.response.text[:200]}",
                     issue_type="http_error",
                 )
             ],
         )
 
-    except httpx.RequestError as e:
-        log.error("Request error fetching agent card: %s", e)
+    except httpx.RequestError as request_error:
+        logger.error("Request error fetching agent card: %s", request_error)
         return ValidationResult(
             valid=False,
-            source=url,
+            source=agent_url,
             source_type=ValidationSource.URL,
             issues=[
                 ValidationIssue(
-                    field="connection",
-                    message=str(e),
+                    field_name="connection",
+                    message=str(request_error),
                     issue_type="connection_error",
                 )
             ],
         )
 
-    except json.JSONDecodeError as e:
-        log.error("JSON decode error: %s", e)
+    except json.JSONDecodeError as json_error:
+        logger.error("JSON decode error: %s", json_error)
         return ValidationResult(
             valid=False,
-            source=url,
+            source=agent_url,
             source_type=ValidationSource.URL,
             issues=[
                 ValidationIssue(
-                    field="json",
-                    message=f"Invalid JSON: {e}",
+                    field_name="json",
+                    message=f"Invalid JSON: {json_error}",
                     issue_type="json_error",
                 )
             ],
         )
 
     finally:
-        if should_close:
-            await client.aclose()
+        if should_close_client:
+            await http_client.aclose()
 
 
 def validate_agent_card_from_file(file_path: str | Path) -> ValidationResult:
@@ -290,17 +297,17 @@ def validate_agent_card_from_file(file_path: str | Path) -> ValidationResult:
         ValidationResult with validation status and any issues
     """
     path = Path(file_path)
-    log.info("Validating agent card from file: %s", path)
+    logger.info("Validating agent card from file: %s", path)
 
     if not path.exists():
-        log.error("File not found: %s", path)
+        logger.error("File not found: %s", path)
         return ValidationResult(
             valid=False,
             source=str(path),
             source_type=ValidationSource.FILE,
             issues=[
                 ValidationIssue(
-                    field="file",
+                    field_name="file",
                     message=f"File not found: {path}",
                     issue_type="file_error",
                 )
@@ -308,14 +315,14 @@ def validate_agent_card_from_file(file_path: str | Path) -> ValidationResult:
         )
 
     if not path.is_file():
-        log.error("Path is not a file: %s", path)
+        logger.error("Path is not a file: %s", path)
         return ValidationResult(
             valid=False,
             source=str(path),
             source_type=ValidationSource.FILE,
             issues=[
                 ValidationIssue(
-                    field="file",
+                    field_name="file",
                     message=f"Path is not a file: {path}",
                     issue_type="file_error",
                 )
@@ -323,51 +330,51 @@ def validate_agent_card_from_file(file_path: str | Path) -> ValidationResult:
         )
 
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        with open(path, encoding="utf-8") as card_file:
+            card_data = json.load(card_file)
 
-        return validate_agent_card_data(data, str(path), ValidationSource.FILE)
+        return validate_agent_card_data(card_data, str(path), ValidationSource.FILE)
 
-    except json.JSONDecodeError as e:
-        log.error("JSON decode error: %s", e)
+    except json.JSONDecodeError as json_error:
+        logger.error("JSON decode error: %s", json_error)
         return ValidationResult(
             valid=False,
             source=str(path),
             source_type=ValidationSource.FILE,
             issues=[
                 ValidationIssue(
-                    field="json",
-                    message=f"Invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}",
+                    field_name="json",
+                    message=f"Invalid JSON at line {json_error.lineno}, column {json_error.colno}: {json_error.msg}",
                     issue_type="json_error",
                 )
             ],
         )
 
     except PermissionError:
-        log.error("Permission denied reading file: %s", path)
+        logger.error("Permission denied reading file: %s", path)
         return ValidationResult(
             valid=False,
             source=str(path),
             source_type=ValidationSource.FILE,
             issues=[
                 ValidationIssue(
-                    field="file",
+                    field_name="file",
                     message=f"Permission denied: {path}",
                     issue_type="file_error",
                 )
             ],
         )
 
-    except OSError as e:
-        log.error("Error reading file: %s", e)
+    except OSError as os_error:
+        logger.error("Error reading file: %s", os_error)
         return ValidationResult(
             valid=False,
             source=str(path),
             source_type=ValidationSource.FILE,
             issues=[
                 ValidationIssue(
-                    field="file",
-                    message=str(e),
+                    field_name="file",
+                    message=str(os_error),
                     issue_type="file_error",
                 )
             ],

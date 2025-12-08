@@ -1,10 +1,12 @@
-import logging
+"""Contact panel component for agent connection management."""
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.widgets import Button, Input, Label
 
-logger = logging.getLogger(__name__)
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
 
 
 class ContactPanel(Container):
@@ -23,12 +25,19 @@ class ContactPanel(Container):
 
     def on_mount(self) -> None:
         self.border_title = "CONTACT"
+        logger.debug("Contact panel mounted")
 
-    def set_connected(self, connected: bool) -> None:
+    def set_connected(self, is_connected: bool) -> None:
         """Update button states based on connection status."""
-        self.query_one("#connect-btn", Button).disabled = connected
-        self.query_one("#disconnect-btn", Button).disabled = not connected
+        connect_button = self.query_one("#connect-btn", Button)
+        disconnect_button = self.query_one("#disconnect-btn", Button)
+
+        connect_button.disabled = is_connected
+        disconnect_button.disabled = not is_connected
+
+        logger.debug("Connection state updated: connected=%s", is_connected)
 
     def get_url(self) -> str:
-        """Get the current agent URL."""
-        return self.query_one("#agent-url", Input).value.strip()
+        """Get the current agent URL from the input field."""
+        url_input = self.query_one("#agent-url", Input)
+        return url_input.value.strip()
