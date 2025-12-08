@@ -179,7 +179,7 @@ def cli(ctx, verbose: bool, debug: bool) -> None:
         log.debug("Verbose logging enabled")
         setup_logging(level="INFO")
     else:
-        setup_logging(level="WARNING")
+        setup_logging(level="ERROR")
 
 
 def _format_send_result(result: SendResult, output: str) -> None:
@@ -315,14 +315,6 @@ def _format_validation_result(result: ValidationResult, output: str) -> None:
                 }
                 for issue in result.issues
             ],
-            "warnings": [
-                {
-                    "field": warning.field_name,
-                    "message": warning.message,
-                    "type": warning.issue_type,
-                }
-                for warning in result.warnings
-            ],
         }
         print_json(json.dumps(output_data, indent=2))
         return
@@ -334,17 +326,6 @@ def _format_validation_result(result: ValidationResult, output: str) -> None:
             f"[bold]Protocol Version:[/bold] {result.protocol_version}",
             f"[bold]Source:[/bold] {result.source}",
         ]
-
-        if result.warnings:
-            content_parts.append("")
-            content_parts.append(
-                f"[bold yellow]Warnings ({len(result.warnings)}):[/bold yellow]"
-            )
-            for warning in result.warnings:
-                content_parts.append(
-                    f"  [yellow]⚠[/yellow] {warning.field_name}: {warning.message}"
-                )
-
         print_panel("\n".join(content_parts), title=title)
     else:
         title = "[bold red]✗ Invalid Agent Card[/bold red]"
@@ -394,7 +375,7 @@ def validate(source: str, output: str) -> None:
         _format_validation_result(result, output)
 
         if not result.valid:
-            raise click.Abort()
+            raise SystemExit(1)
 
     asyncio.run(do_validate())
 
