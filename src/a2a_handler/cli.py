@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 # Suppress noisy third-party debug logs during import
 logging.getLogger().setLevel(logging.WARNING)
@@ -18,6 +18,8 @@ from a2a.client.errors import (
 from a2a_handler import __version__
 from a2a_handler.common import (
     console,
+    format_field_name,
+    format_value,
     get_logger,
     print_error,
     print_json,
@@ -180,82 +182,6 @@ def cli(ctx, verbose: bool, debug: bool) -> None:
         setup_logging(level="WARNING")
 
 
-def _format_field_name(name: str) -> str:
-    """Convert snake_case or camelCase to Title Case."""
-    import re
-
-    name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
-    name = name.replace("_", " ")
-    return name.title()
-
-
-def _format_value(value: Any, indent: int = 0) -> str:
-    """Recursively format a value for display, returning only truthy content."""
-    prefix = "  " * indent
-
-    if value is None or value == "" or value == [] or value == {}:
-        return ""
-
-    if isinstance(value, bool):
-        return "✓" if value else "✗"
-
-    if isinstance(value, str):
-        return value
-
-    if isinstance(value, int | float):
-        return str(value)
-
-    if isinstance(value, list):
-        lines: list[str] = []
-        for item in value:
-            if hasattr(item, "model_dump"):
-                item_dict: dict[str, Any] = item.model_dump()
-                name = item_dict.get("name") or item_dict.get("id") or "Item"
-                desc = item_dict.get("description") or ""
-                if desc:
-                    desc_prefix = "  " * (indent + 1)
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
-                    lines.append(f"{desc_prefix}  {desc}")
-                else:
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
-            elif isinstance(item, dict):
-                item_d: dict[str, Any] = item
-                name = item_d.get("name") or item_d.get("id") or "Item"
-                desc = item_d.get("description") or ""
-                if desc:
-                    desc_prefix = "  " * (indent + 1)
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
-                    lines.append(f"{desc_prefix}  {desc}")
-                else:
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
-            else:
-                formatted = _format_value(item, indent)
-                if formatted:
-                    lines.append(f"{prefix}  • {formatted}")
-        return "\n" + "\n".join(lines) if lines else ""
-
-    if hasattr(value, "model_dump"):
-        value = value.model_dump()
-
-    if isinstance(value, dict):
-        dict_lines: list[str] = []
-        for k, v in value.items():
-            if isinstance(k, str) and k.startswith("_"):
-                continue
-            formatted = _format_value(v, indent + 1)
-            if formatted:
-                field_name = _format_field_name(str(k))
-                if "\n" in formatted:
-                    dict_lines.append(
-                        f"{prefix}[bold]{field_name}:[/bold]\n{formatted}"
-                    )
-                else:
-                    dict_lines.append(f"{prefix}[bold]{field_name}:[/bold] {formatted}")
-        return "\n".join(dict_lines) if dict_lines else ""
-
-    return str(value) if value else ""
-
-
 def _format_send_result(result: SendResult, output: str) -> None:
     """Format and display a send result."""
     if output == "json":
@@ -351,9 +277,9 @@ def card(agent_url: str, output: str) -> None:
                     for key, value in card_dict.items():
                         if key.startswith("_"):
                             continue
-                        formatted = _format_value(value)
+                        formatted = format_value(value)
                         if formatted:
-                            field_name = _format_field_name(key)
+                            field_name = format_field_name(key)
                             if "\n" in formatted:
                                 content_parts.append(
                                     f"[bold]{field_name}:[/bold]\n{formatted}"

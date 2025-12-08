@@ -1,5 +1,9 @@
 """Common utilities for Handler."""
 
+from .formatting import (
+    format_field_name,
+    format_value,
+)
 from .logging import (
     HANDLER_THEME,
     LogLevel,
@@ -23,6 +27,8 @@ __all__ = [
     "HANDLER_THEME",
     "LogLevel",
     "console",
+    "format_field_name",
+    "format_value",
     "get_logger",
     "print_error",
     "print_info",
