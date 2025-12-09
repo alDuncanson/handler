@@ -90,7 +90,7 @@ click.rich_click.COMMAND_GROUPS = {
     "handler": [
         {
             "name": "Agent Commands",
-            "commands": ["card", "send", "validate", "tasks", "push"],
+            "commands": ["card", "send", "validate", "tasks"],
         },
         {
             "name": "Interface Commands",
@@ -106,11 +106,9 @@ click.rich_click.COMMAND_GROUPS = {
             "name": "Task Commands",
             "commands": ["get", "cancel", "resubscribe"],
         },
-    ],
-    "handler push": [
         {
             "name": "Push Notification Commands",
-            "commands": ["set", "get"],
+            "commands": ["push-set", "push-get"],
         },
     ],
     "handler session": [
@@ -653,13 +651,7 @@ def tasks_resubscribe(
     asyncio.run(resubscribe())
 
 
-@cli.group()
-def push() -> None:
-    """Manage push notification configurations."""
-    pass
-
-
-@push.command("set")
+@tasks.command("push-set")
 @click.argument("agent_url")
 @click.argument("task_id")
 @click.option("--url", "-u", required=True, help="Webhook URL to receive notifications")
@@ -671,7 +663,7 @@ def push() -> None:
     default="text",
     help="Output format",
 )
-def push_set(
+def tasks_push_set(
     agent_url: str,
     task_id: str,
     url: str,
@@ -684,7 +676,7 @@ def push_set(
     when task status changes.
 
     Example:
-        handler push set http://localhost:8000 TASK_ID --url http://localhost:9000/webhook
+        handler tasks push-set http://localhost:8000 TASK_ID --url http://localhost:9000/webhook
     """
     log.info("Setting push config for task %s at %s", task_id, agent_url)
 
@@ -718,7 +710,7 @@ def push_set(
     asyncio.run(set_push())
 
 
-@push.command("get")
+@tasks.command("push-get")
 @click.argument("agent_url")
 @click.argument("task_id")
 @click.argument("config_id")
@@ -729,7 +721,7 @@ def push_set(
     default="text",
     help="Output format",
 )
-def push_get(
+def tasks_push_get(
     agent_url: str,
     task_id: str,
     config_id: str,
