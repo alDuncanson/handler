@@ -698,10 +698,14 @@ def tasks_push_set(
                     console.print(
                         "[green]Push notification config set successfully[/green]"
                     )
-                    console.print(f"[bold]Task ID:[/bold] {task_id}")
-                    console.print(f"[bold]Webhook URL:[/bold] {url}")
-                    if token:
-                        console.print(f"[bold]Token:[/bold] {token[:20]}...")
+                    console.print(f"[bold]Task ID:[/bold] {config.task_id}")
+                    if config.push_notification_config:
+                        pnc = config.push_notification_config
+                        console.print(f"[bold]URL:[/bold] {pnc.url}")
+                        if pnc.token:
+                            console.print(f"[bold]Token:[/bold] {pnc.token[:20]}...")
+                        if pnc.id:
+                            console.print(f"[bold]Config ID:[/bold] {pnc.id}")
 
         except Exception as e:
             _handle_client_error(e, agent_url)
