@@ -11,31 +11,21 @@ from .logging import (
     get_logger,
     setup_logging,
 )
-from .printing import (
-    BorderStyle,
-    print_error,
-    print_info,
-    print_json,
-    print_markdown,
-    print_panel,
-    print_success,
-    print_warning,
+from .output import (
+    OutputContext,
+    OutputMode,
+    get_output_context,
 )
 
 __all__ = [
-    "BorderStyle",
     "HANDLER_THEME",
     "LogLevel",
+    "OutputContext",
+    "OutputMode",
     "console",
     "format_field_name",
     "format_value",
     "get_logger",
-    "print_error",
-    "print_info",
-    "print_json",
-    "print_markdown",
-    "print_panel",
-    "print_success",
-    "print_warning",
+    "get_output_context",
     "setup_logging",
 ]

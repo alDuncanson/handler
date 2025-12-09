@@ -103,7 +103,7 @@ def extract_text_from_message_parts(message_parts: list[Part] | None) -> str:
 
 
 def extract_text_from_task(task: Task) -> str:
-    """Extract text from task artifacts and history."""
+    """Extract text from task artifacts, falling back to history if no artifacts."""
     extracted_texts = []
 
     if task.artifacts:
@@ -111,7 +111,8 @@ def extract_text_from_task(task: Task) -> str:
             if artifact.parts:
                 extracted_texts.append(extract_text_from_message_parts(artifact.parts))
 
-    if task.history:
+    # Only check history if no artifacts found (avoids duplication)
+    if not extracted_texts and task.history:
         for message in task.history:
             if message.role == Role.agent and message.parts:
                 extracted_texts.append(extract_text_from_message_parts(message.parts))
@@ -540,3 +541,77 @@ class A2AService:
         logger.info("Getting push config %s for task %s", config_id, task_id)
 
         return await client.get_task_callback(query_params)
+
+    async def list_push_configs(
+        self,
+        task_id: str,
+    ) -> list[TaskPushNotificationConfig]:
+        """List all push notification configurations for a task.
+
+        Args:
+            task_id: ID of the task
+
+        Returns:
+            List of push notification configurations
+
+        Note:
+            This method uses raw JSON-RPC as the SDK doesn't expose this yet.
+        """
+        await self.get_card()
+        logger.info("Listing push configs for task %s", task_id)
+
+        request_payload = {
+            "jsonrpc": "2.0",
+            "method": "tasks/pushNotificationConfig/list",
+            "params": {"id": task_id},
+            "id": str(uuid.uuid4()),
+        }
+
+        response = await self.http_client.post(
+            self.agent_url,
+            json=request_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        if "error" in result:
+            raise RuntimeError(result["error"].get("message", "Unknown error"))
+
+        configs_data = result.get("result", [])
+        return [TaskPushNotificationConfig.model_validate(c) for c in configs_data]
+
+    async def delete_push_config(
+        self,
+        task_id: str,
+        config_id: str,
+    ) -> None:
+        """Delete a push notification configuration for a task.
+
+        Args:
+            task_id: ID of the task
+            config_id: ID of the push config to delete
+
+        Note:
+            This method uses raw JSON-RPC as the SDK doesn't expose this yet.
+        """
+        await self.get_card()
+        logger.info("Deleting push config %s for task %s", config_id, task_id)
+
+        request_payload = {
+            "jsonrpc": "2.0",
+            "method": "tasks/pushNotificationConfig/delete",
+            "params": {"id": task_id, "push_notification_config_id": config_id},
+            "id": str(uuid.uuid4()),
+        }
+
+        response = await self.http_client.post(
+            self.agent_url,
+            json=request_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        if "error" in result:
+            raise RuntimeError(result["error"].get("message", "Unknown error"))
