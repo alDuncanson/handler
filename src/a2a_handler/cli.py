@@ -271,7 +271,7 @@ def message_send(
     mode = get_mode(ctx, output)
 
     async def do_send() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(
@@ -283,19 +283,19 @@ def message_send(
                     )
 
                     if mode != "json":
-                        out.dim(f"Sending to {agent_url}...")
+                        output.dim(f"Sending to {agent_url}...")
 
                     if stream:
                         await _stream_message(
-                            service, text, context_id, task_id, agent_url, out, output
+                            service, text, context_id, task_id, agent_url, output
                         )
                     else:
                         result = await service.send(text, context_id, task_id)
                         update_session(agent_url, result.context_id, result.task_id)
-                        _format_send_result(result, out, output)
+                        _format_send_result(result, output)
 
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_send())
@@ -351,22 +351,22 @@ async def _stream_message(
     context_id: Optional[str],
     task_id: Optional[str],
     agent_url: str,
-    out: object,
-    output_format: str,
+    output: Output,
 ) -> None:
     """Stream a message and handle events."""
-    output = out if isinstance(out, Output) else None
     collected_text: list[str] = []
     last_context_id: str | None = None
     last_task_id: str | None = None
     last_state = None
+
+    is_json = output.mode.value == "json"
 
     async for event in service.stream(text, context_id, task_id):
         last_context_id = event.context_id or last_context_id
         last_task_id = event.task_id or last_task_id
         last_state = event.state or last_state
 
-        if output_format == "json":
+        if is_json:
             event_data = {
                 "type": event.event_type,
                 "context_id": event.context_id,
@@ -374,17 +374,15 @@ async def _stream_message(
                 "state": event.state.value if event.state else None,
                 "text": event.text,
             }
-            if output:
-                output.json(event_data)
+            output.json(event_data)
         else:
             if event.text and event.text not in collected_text:
-                if output:
-                    output.line(event.text)
+                output.line(event.text)
                 collected_text.append(event.text)
 
     update_session(agent_url, last_context_id, last_task_id)
 
-    if output_format != "json" and output:
+    if not is_json:
         output.blank()
         if last_context_id:
             output.field("Context ID", last_context_id, dim_value=True)
@@ -394,13 +392,9 @@ async def _stream_message(
             output.state("State", last_state.value)
 
 
-def _format_send_result(result: SendResult, out: object, output_format: str) -> None:
+def _format_send_result(result: SendResult, output: Output) -> None:
     """Format and display a send result."""
-    output = out if isinstance(out, Output) else None
-    if not output:
-        return
-
-    if output_format == "json":
+    if output.mode.value == "json":
         output.json(result.raw)
         return
 
@@ -456,14 +450,14 @@ def task_get(
     mode = get_mode(ctx, output)
 
     async def do_get() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(http_client, agent_url)
                     result = await service.get_task(task_id, history_length)
-                    _format_task_result(result, out, output)
+                    _format_task_result(result, output)
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_get())
@@ -486,22 +480,22 @@ def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -
     mode = get_mode(ctx, output)
 
     async def do_cancel() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(http_client, agent_url)
 
                     if mode != "json":
-                        out.dim(f"Canceling task {task_id}...")
+                        output.dim(f"Canceling task {task_id}...")
 
                     result = await service.cancel_task(task_id)
-                    _format_task_result(result, out, output)
+                    _format_task_result(result, output)
 
                     if mode != "json":
-                        out.success("Task canceled")
+                        output.success("Task canceled")
 
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_cancel())
@@ -526,17 +520,18 @@ def task_resubscribe(
     mode = get_mode(ctx, output)
 
     async def do_resubscribe() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(http_client, agent_url)
+                    is_json = output.mode.value == "json"
 
-                    if mode != "json":
-                        out.dim(f"Resubscribing to task {task_id}...")
+                    if not is_json:
+                        output.dim(f"Resubscribing to task {task_id}...")
 
                     async for event in service.resubscribe(task_id):
-                        if output == "json":
-                            out.json(
+                        if is_json:
+                            output.json(
                                 {
                                     "type": event.event_type,
                                     "context_id": event.context_id,
@@ -547,27 +542,23 @@ def task_resubscribe(
                             )
                         else:
                             if event.event_type == "status":
-                                out.state(
+                                output.state(
                                     "Status",
                                     event.state.value if event.state else "unknown",
                                 )
                             elif event.text:
-                                out.line(event.text)
+                                output.line(event.text)
 
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_resubscribe())
 
 
-def _format_task_result(result: TaskResult, out: object, output_format: str) -> None:
+def _format_task_result(result: TaskResult, output: Output) -> None:
     """Format and display a task result."""
-    output = out if isinstance(out, Output) else None
-    if not output:
-        return
-
-    if output_format == "json":
+    if output.mode.value == "json":
         output.json(result.raw)
         return
 
@@ -619,31 +610,32 @@ def notification_set(
     mode = get_mode(ctx, output)
 
     async def do_set() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(http_client, agent_url)
+                    is_json = output.mode.value == "json"
 
-                    if mode != "json":
-                        out.dim(f"Setting notification config for task {task_id}...")
+                    if not is_json:
+                        output.dim(f"Setting notification config for task {task_id}...")
 
                     config = await service.set_push_config(task_id, url, token)
 
-                    if output == "json":
-                        out.json(config.model_dump())
+                    if is_json:
+                        output.json(config.model_dump())
                     else:
-                        out.success("Push notification config set")
-                        out.field("Task ID", config.task_id)
+                        output.success("Push notification config set")
+                        output.field("Task ID", config.task_id)
                         if config.push_notification_config:
                             pnc = config.push_notification_config
-                            out.field("URL", pnc.url)
+                            output.field("URL", pnc.url)
                             if pnc.token:
-                                out.field("Token", f"{pnc.token[:20]}...")
+                                output.field("Token", f"{pnc.token[:20]}...")
                             if pnc.id:
-                                out.field("Config ID", pnc.id)
+                                output.field("Config ID", pnc.id)
 
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_set())
@@ -681,30 +673,27 @@ def card_get(
     mode = get_mode(ctx, output)
 
     async def do_get() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             try:
                 async with build_http_client() as http_client:
                     service = A2AService(http_client, agent_url)
                     card_data = await service.get_card()
                     log.info("Retrieved card for agent: %s", card_data.name)
 
-                    if output == "json":
-                        out.json(card_data.model_dump())
+                    if output.mode.value == "json":
+                        output.json(card_data.model_dump())
                     else:
-                        _format_agent_card(card_data, out)
+                        _format_agent_card(card_data, output)
 
             except Exception as e:
-                _handle_client_error(e, agent_url, out)
+                _handle_client_error(e, agent_url, output)
                 raise click.Abort()
 
     asyncio.run(do_get())
 
 
-def _format_agent_card(card_data: object, out: object) -> None:
+def _format_agent_card(card_data: object, output: Output) -> None:
     """Format and display an agent card."""
-    output = out if isinstance(out, Output) else None
-    if not output:
-        return
 
     card_dict: dict[str, Any]
     if isinstance(card_data, AgentCard):
@@ -749,14 +738,14 @@ def card_validate(ctx: click.Context, source: str, output: str) -> None:
     mode = get_mode(ctx, output)
 
     async def do_validate() -> None:
-        with get_output_context(mode) as out:
+        with get_output_context(mode) as output:
             if is_url:
                 async with build_http_client() as http_client:
                     result = await validate_agent_card_from_url(source, http_client)
             else:
                 result = validate_agent_card_from_file(source)
 
-            _format_validation_result(result, out, output)
+            _format_validation_result(result, output)
 
             if not result.valid:
                 raise SystemExit(1)
@@ -764,15 +753,9 @@ def card_validate(ctx: click.Context, source: str, output: str) -> None:
     asyncio.run(do_validate())
 
 
-def _format_validation_result(
-    result: ValidationResult, out: object, output_format: str
-) -> None:
+def _format_validation_result(result: ValidationResult, output: Output) -> None:
     """Format and display validation result."""
-    output = out if isinstance(out, Output) else None
-    if not output:
-        return
-
-    if output_format == "json":
+    if output.mode.value == "json":
         output.json(
             {
                 "valid": result.valid,
@@ -848,22 +831,22 @@ def session_list(ctx: click.Context) -> None:
     """List all saved sessions."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
-    with get_output_context(mode) as out:
+    with get_output_context(mode) as output:
         store = get_session_store()
         sessions = store.list_all()
 
         if not sessions:
-            out.dim("No saved sessions")
+            output.dim("No saved sessions")
             return
 
-        out.header(f"Saved Sessions ({len(sessions)})")
+        output.header(f"Saved Sessions ({len(sessions)})")
         for s in sessions:
-            out.blank()
-            out.subheader(s.agent_url)
+            output.blank()
+            output.subheader(s.agent_url)
             if s.context_id:
-                out.field("Context ID", s.context_id, dim_value=True)
+                output.field("Context ID", s.context_id, dim_value=True)
             if s.task_id:
-                out.field("Task ID", s.task_id, dim_value=True)
+                output.field("Task ID", s.task_id, dim_value=True)
 
 
 @session.command("show")
@@ -873,11 +856,11 @@ def session_show(ctx: click.Context, agent_url: str) -> None:
     """Display session state for an agent."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
-    with get_output_context(mode) as out:
+    with get_output_context(mode) as output:
         s = get_session(agent_url)
-        out.header(f"Session for {agent_url}")
-        out.field("Context ID", s.context_id or "none", dim_value=not s.context_id)
-        out.field("Task ID", s.task_id or "none", dim_value=not s.task_id)
+        output.header(f"Session for {agent_url}")
+        output.field("Context ID", s.context_id or "none", dim_value=not s.context_id)
+        output.field("Task ID", s.task_id or "none", dim_value=not s.task_id)
 
 
 @session.command("clear")
@@ -890,15 +873,15 @@ def session_clear(
     """Clear saved session state."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
-    with get_output_context(mode) as out:
+    with get_output_context(mode) as output:
         if clear_all:
             clear_session()
-            out.success("Cleared all sessions")
+            output.success("Cleared all sessions")
         elif agent_url:
             clear_session(agent_url)
-            out.success(f"Cleared session for {agent_url}")
+            output.success(f"Cleared session for {agent_url}")
         else:
-            out.warning("Provide AGENT_URL or use --all to clear sessions")
+            output.warning("Provide AGENT_URL or use --all to clear sessions")
 
 
 # ============================================================================
