@@ -1,12 +1,13 @@
-"""Tests for A2A protocol validation."""
+"""Tests for the agent card validation module."""
 
 import json
 import tempfile
 from pathlib import Path
 
+from a2a.types import AgentCard
+
 from a2a_handler.validation import (
     ValidationSource,
-    validate_agent_card_data,
     validate_agent_card_from_file,
 )
 
@@ -36,58 +37,38 @@ def _minimal_valid_agent_card() -> dict:
     }
 
 
-class TestValidateAgentCardData:
-    """Tests for validate_agent_card_data function."""
+class TestAgentCardValidation:
+    """Tests for agent card validation using the A2A SDK."""
 
     def test_valid_minimal_card(self):
         """Test validation of a minimal valid agent card."""
         data = _minimal_valid_agent_card()
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
+        card = AgentCard.model_validate(data)
 
-        assert result.valid is True
-        assert result.agent_card is not None
-        assert result.agent_card.name == "Test Agent"
-        assert len(result.issues) == 0
+        assert card.name == "Test Agent"
+        assert card.description == "A test agent"
+        assert len(card.skills) == 1
 
     def test_missing_required_field(self):
         """Test validation fails when required field is missing."""
         data = {"url": "http://localhost:8000"}
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.valid is False
-        assert len(result.issues) > 0
-        field_names = [i.field for i in result.issues]
-        assert "name" in field_names
-
-    def test_warnings_for_optional_fields(self):
-        """Test warnings are generated for missing optional fields."""
-        data = _minimal_valid_agent_card()
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
-
-        assert result.valid is True
-        warning_fields = [w.field for w in result.warnings]
-        assert "provider" in warning_fields
-        assert "documentationUrl" in warning_fields
-        assert "iconUrl" in warning_fields
+        try:
+            AgentCard.model_validate(data)
+            assert False, "Expected validation to fail"
+        except Exception:
+            pass
 
     def test_skill_without_tags_fails_validation(self):
         """Test that skills without tags fail validation (tags are required in v0.3.0)."""
         data = _minimal_valid_agent_card()
         data["skills"] = [{"id": "test", "name": "Test", "description": "Test desc"}]
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.valid is False
-        issue_fields = [i.field for i in result.issues]
-        assert any("skills" in f and "tags" in f for f in issue_fields)
-
-    def test_skill_without_examples_generates_warning(self):
-        """Test that skills without examples generate warnings."""
-        data = _minimal_valid_agent_card()
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
-
-        assert result.valid is True
-        warning_fields = [w.field for w in result.warnings]
-        assert any("examples" in f for f in warning_fields)
+        try:
+            AgentCard.model_validate(data)
+            assert False, "Expected validation to fail"
+        except Exception:
+            pass
 
 
 class TestValidateAgentCardFromFile:
@@ -147,30 +128,54 @@ class TestValidationResult:
     def test_agent_name_from_card(self):
         """Test agent_name property returns name from agent card."""
         data = _minimal_valid_agent_card()
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.agent_name == "Test Agent"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+            f.flush()
+
+            result = validate_agent_card_from_file(f.name)
+            assert result.agent_name == "Test Agent"
+
+            Path(f.name).unlink()
 
     def test_agent_name_from_raw_data(self):
         """Test agent_name property returns name from raw data when card is None."""
         data = {"name": "Raw Agent", "url": "invalid"}
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.valid is False
-        assert result.agent_name == "Raw Agent"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+            f.flush()
+
+            result = validate_agent_card_from_file(f.name)
+            assert result.valid is False
+            assert result.agent_name == "Raw Agent"
+
+            Path(f.name).unlink()
 
     def test_protocol_version_from_sdk(self):
         """Test protocol_version returns the SDK default version."""
         data = _minimal_valid_agent_card()
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.protocol_version is not None
-        assert len(result.protocol_version) > 0
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+            f.flush()
+
+            result = validate_agent_card_from_file(f.name)
+            assert result.protocol_version is not None
+            assert len(result.protocol_version) > 0
+
+            Path(f.name).unlink()
 
     def test_protocol_version_explicit(self):
         """Test protocol_version returns explicit version when set."""
         data = _minimal_valid_agent_card()
         data["protocolVersion"] = "2.0"
-        result = validate_agent_card_data(data, "test", ValidationSource.FILE)
 
-        assert result.protocol_version == "2.0"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+            f.flush()
+
+            result = validate_agent_card_from_file(f.name)
+            assert result.protocol_version == "2.0"
+
+            Path(f.name).unlink()

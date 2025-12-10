@@ -1,0 +1,518 @@
+"""A2A protocol service layer.
+
+Provides a unified interface for A2A operations, shared between the CLI and TUI.
+"""
+
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, AsyncIterator
+
+import httpx
+from a2a.client import A2ACardResolver, Client, ClientConfig, ClientFactory
+from a2a.types import (
+    AgentCard,
+    Message,
+    Part,
+    PushNotificationConfig,
+    Role,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskIdParams,
+    TaskPushNotificationConfig,
+    TaskQueryParams,
+    TaskState,
+    TaskStatusUpdateEvent,
+    TextPart,
+    TransportProtocol,
+)
+
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
+
+TERMINAL_TASK_STATES = {
+    TaskState.completed,
+    TaskState.canceled,
+    TaskState.failed,
+    TaskState.rejected,
+}
+
+
+@dataclass
+class SendResult:
+    """Result from sending a message to an agent."""
+
+    task: Task | None = None
+    message: Message | None = None
+    context_id: str | None = None
+    task_id: str | None = None
+    state: TaskState | None = None
+    text: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_complete(self) -> bool:
+        """Check if the task reached a terminal state."""
+        return self.state in TERMINAL_TASK_STATES if self.state else False
+
+    @property
+    def needs_input(self) -> bool:
+        """Check if the task is waiting for user input."""
+        return self.state == TaskState.input_required if self.state else False
+
+
+@dataclass
+class StreamEvent:
+    """A single event from a streaming response."""
+
+    event_type: str
+    task: Task | None = None
+    message: Message | None = None
+    status: TaskStatusUpdateEvent | None = None
+    artifact: TaskArtifactUpdateEvent | None = None
+    context_id: str | None = None
+    task_id: str | None = None
+    state: TaskState | None = None
+    text: str = ""
+
+
+@dataclass
+class TaskResult:
+    """Result from a task operation (get/cancel)."""
+
+    task: Task
+    task_id: str
+    state: TaskState
+    context_id: str | None = None
+    text: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+def extract_text_from_message_parts(message_parts: list[Part] | None) -> str:
+    """Extract text content from message parts."""
+    if not message_parts:
+        return ""
+
+    extracted_texts = []
+    for part in message_parts:
+        if isinstance(part.root, TextPart):
+            extracted_texts.append(part.root.text)
+
+    return "\n".join(text for text in extracted_texts if text)
+
+
+def extract_text_from_task(task: Task) -> str:
+    """Extract text from task artifacts, falling back to history if no artifacts."""
+    extracted_texts = []
+
+    if task.artifacts:
+        for artifact in task.artifacts:
+            if artifact.parts:
+                extracted_texts.append(extract_text_from_message_parts(artifact.parts))
+
+    # Only check history if no artifacts found (avoids duplication)
+    if not extracted_texts and task.history:
+        for message in task.history:
+            if message.role == Role.agent and message.parts:
+                extracted_texts.append(extract_text_from_message_parts(message.parts))
+
+    return "\n".join(text for text in extracted_texts if text)
+
+
+class A2AService:
+    """High-level service for A2A protocol operations.
+
+    Wraps the a2a-sdk Client and provides a simplified interface
+    for common operations. Designed to be shared between CLI and TUI.
+    """
+
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient,
+        agent_url: str,
+        enable_streaming: bool = True,
+        push_notification_url: str | None = None,
+        push_notification_token: str | None = None,
+    ) -> None:
+        """Initialize the A2A service.
+
+        Args:
+            http_client: Async HTTP client to use for requests
+            agent_url: Base URL of the A2A agent
+            enable_streaming: Whether to prefer streaming when available
+            push_notification_url: Optional webhook URL for push notifications
+            push_notification_token: Optional token for push notification auth
+        """
+        self.http_client = http_client
+        self.agent_url = agent_url
+        self.enable_streaming = enable_streaming
+        self.push_notification_url = push_notification_url
+        self.push_notification_token = push_notification_token
+        self._cached_client: Client | None = None
+        self._cached_agent_card: AgentCard | None = None
+
+    async def get_card(self) -> AgentCard:
+        """Fetch and cache the agent card.
+
+        Returns:
+            The agent's card with metadata and capabilities
+        """
+        if self._cached_agent_card is None:
+            logger.info("Fetching agent card from %s", self.agent_url)
+            card_resolver = A2ACardResolver(self.http_client, self.agent_url)
+            self._cached_agent_card = await card_resolver.get_agent_card()
+            logger.info("Connected to agent: %s", self._cached_agent_card.name)
+        return self._cached_agent_card
+
+    async def _get_or_create_client(self) -> Client:
+        """Get or create the A2A client.
+
+        Returns:
+            Configured A2A client instance
+        """
+        if self._cached_client is None:
+            agent_card = await self.get_card()
+
+            push_notification_configs: list[PushNotificationConfig] = []
+            if self.push_notification_url:
+                push_notification_configs.append(
+                    PushNotificationConfig(
+                        url=self.push_notification_url,
+                        token=self.push_notification_token,
+                    )
+                )
+                logger.info(
+                    "Push notification configured: %s", self.push_notification_url
+                )
+
+            client_config = ClientConfig(
+                httpx_client=self.http_client,
+                supported_transports=[TransportProtocol.jsonrpc],
+                streaming=self.enable_streaming,
+                push_notification_configs=push_notification_configs,
+            )
+
+            client_factory = ClientFactory(client_config)
+            self._cached_client = client_factory.create(agent_card)
+            logger.debug("Created A2A client for %s", agent_card.name)
+
+        return self._cached_client
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Check if the agent supports streaming."""
+        if self._cached_agent_card and self._cached_agent_card.capabilities:
+            return bool(self._cached_agent_card.capabilities.streaming)
+        return False
+
+    @property
+    def supports_push_notifications(self) -> bool:
+        """Check if the agent supports push notifications."""
+        if self._cached_agent_card and self._cached_agent_card.capabilities:
+            return bool(self._cached_agent_card.capabilities.push_notifications)
+        return False
+
+    def _build_user_message(
+        self,
+        message_text: str,
+        context_id: str | None = None,
+        task_id: str | None = None,
+    ) -> Message:
+        """Build a user message.
+
+        Args:
+            message_text: Message content
+            context_id: Optional context ID for conversation continuity
+            task_id: Optional task ID to continue
+
+        Returns:
+            Properly formatted Message object
+        """
+        return Message(
+            message_id=str(uuid.uuid4()),
+            role=Role.user,
+            parts=[Part(root=TextPart(text=message_text))],
+            context_id=context_id,
+            task_id=task_id,
+        )
+
+    async def send(
+        self,
+        message_text: str,
+        context_id: str | None = None,
+        task_id: str | None = None,
+    ) -> SendResult:
+        """Send a message to the agent and wait for completion.
+
+        This method collects all streaming events and returns the final result.
+
+        Args:
+            message_text: Message to send
+            context_id: Optional context ID for conversation continuity
+            task_id: Optional task ID to continue
+
+        Returns:
+            SendResult with task state, extracted text, and IDs
+        """
+        client = await self._get_or_create_client()
+        user_message = self._build_user_message(message_text, context_id, task_id)
+
+        truncated_message = (
+            message_text[:50] if len(message_text) > 50 else message_text
+        )
+        logger.info("Sending message: %s", truncated_message)
+
+        result = SendResult()
+        last_received_task: Task | None = None
+
+        async for event in client.send_message(user_message):
+            if isinstance(event, Message):
+                result.message = event
+                result.context_id = event.context_id
+                result.task_id = event.task_id
+                result.text = extract_text_from_message_parts(event.parts)
+                logger.debug("Received message response")
+            elif isinstance(event, tuple):
+                received_task, task_update = event
+                last_received_task = received_task
+                result.task = received_task
+                result.task_id = received_task.id
+                result.context_id = received_task.context_id
+                if received_task.status:
+                    result.state = received_task.status.state
+                logger.debug(
+                    "Received task update: %s",
+                    received_task.status.state if received_task.status else "unknown",
+                )
+
+        if last_received_task:
+            result.text = extract_text_from_task(last_received_task)
+            result.raw = (
+                last_received_task.model_dump()
+                if hasattr(last_received_task, "model_dump")
+                else {}
+            )
+        elif result.message:
+            result.raw = (
+                result.message.model_dump()
+                if hasattr(result.message, "model_dump")
+                else {}
+            )
+
+        logger.info("Send complete: task_id=%s, state=%s", result.task_id, result.state)
+        return result
+
+    async def stream(
+        self,
+        message_text: str,
+        context_id: str | None = None,
+        task_id: str | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Send a message and stream responses as they arrive.
+
+        Args:
+            message_text: Message to send
+            context_id: Optional context ID for conversation continuity
+            task_id: Optional task ID to continue
+
+        Yields:
+            StreamEvent objects as they are received
+        """
+        client = await self._get_or_create_client()
+        user_message = self._build_user_message(message_text, context_id, task_id)
+
+        truncated_message = (
+            message_text[:50] if len(message_text) > 50 else message_text
+        )
+        logger.info("Streaming message: %s", truncated_message)
+
+        async for event in client.send_message(user_message):
+            if isinstance(event, Message):
+                yield StreamEvent(
+                    event_type="message",
+                    message=event,
+                    context_id=event.context_id,
+                    task_id=event.task_id,
+                    text=extract_text_from_message_parts(event.parts),
+                )
+            elif isinstance(event, tuple):
+                received_task, task_update = event
+                if isinstance(task_update, TaskStatusUpdateEvent):
+                    status_message_text = ""
+                    if task_update.status and task_update.status.message:
+                        status_message_text = str(task_update.status.message)
+                    yield StreamEvent(
+                        event_type="status",
+                        task=received_task,
+                        status=task_update,
+                        context_id=received_task.context_id,
+                        task_id=received_task.id,
+                        state=task_update.status.state if task_update.status else None,
+                        text=status_message_text,
+                    )
+                elif isinstance(task_update, TaskArtifactUpdateEvent):
+                    artifact_text = ""
+                    if task_update.artifact and task_update.artifact.parts:
+                        artifact_text = extract_text_from_message_parts(
+                            task_update.artifact.parts
+                        )
+                    yield StreamEvent(
+                        event_type="artifact",
+                        task=received_task,
+                        artifact=task_update,
+                        context_id=received_task.context_id,
+                        task_id=received_task.id,
+                        state=(
+                            received_task.status.state if received_task.status else None
+                        ),
+                        text=artifact_text,
+                    )
+                else:
+                    yield StreamEvent(
+                        event_type="task",
+                        task=received_task,
+                        context_id=received_task.context_id,
+                        task_id=received_task.id,
+                        state=(
+                            received_task.status.state if received_task.status else None
+                        ),
+                        text=extract_text_from_task(received_task),
+                    )
+
+    async def get_task(
+        self,
+        task_id: str,
+        history_length: int | None = None,
+    ) -> TaskResult:
+        """Get the current state of a task.
+
+        Args:
+            task_id: ID of the task to retrieve
+            history_length: Optional number of history messages to include
+
+        Returns:
+            TaskResult with task state and details
+        """
+        client = await self._get_or_create_client()
+
+        query_params = TaskQueryParams(id=task_id, history_length=history_length)
+        logger.info("Getting task: %s", task_id)
+
+        task = await client.get_task(query_params)
+
+        return TaskResult(
+            task=task,
+            task_id=task.id,
+            state=task.status.state if task.status else TaskState.unknown,
+            context_id=task.context_id,
+            text=extract_text_from_task(task),
+            raw=task.model_dump() if hasattr(task, "model_dump") else {},
+        )
+
+    async def cancel_task(self, task_id: str) -> TaskResult:
+        """Cancel a running task.
+
+        Args:
+            task_id: ID of the task to cancel
+
+        Returns:
+            TaskResult with updated task state
+        """
+        client = await self._get_or_create_client()
+
+        task_id_params = TaskIdParams(id=task_id)
+        logger.info("Canceling task: %s", task_id)
+
+        task = await client.cancel_task(task_id_params)
+
+        return TaskResult(
+            task=task,
+            task_id=task.id,
+            state=task.status.state if task.status else TaskState.unknown,
+            context_id=task.context_id,
+            text=extract_text_from_task(task),
+            raw=task.model_dump() if hasattr(task, "model_dump") else {},
+        )
+
+    async def resubscribe(self, task_id: str) -> AsyncIterator[StreamEvent]:
+        """Resubscribe to a task's event stream.
+
+        Args:
+            task_id: ID of the task to resubscribe to
+
+        Yields:
+            StreamEvent objects as they are received
+        """
+        client = await self._get_or_create_client()
+
+        task_id_params = TaskIdParams(id=task_id)
+        logger.info("Resubscribing to task: %s", task_id)
+
+        async for event in client.resubscribe(task_id_params):
+            received_task, task_update = event
+            if isinstance(task_update, TaskStatusUpdateEvent):
+                yield StreamEvent(
+                    event_type="status",
+                    task=received_task,
+                    status=task_update,
+                    context_id=received_task.context_id,
+                    task_id=received_task.id,
+                    state=task_update.status.state if task_update.status else None,
+                )
+            elif isinstance(task_update, TaskArtifactUpdateEvent):
+                artifact_text = ""
+                if task_update.artifact and task_update.artifact.parts:
+                    artifact_text = extract_text_from_message_parts(
+                        task_update.artifact.parts
+                    )
+                yield StreamEvent(
+                    event_type="artifact",
+                    task=received_task,
+                    artifact=task_update,
+                    context_id=received_task.context_id,
+                    task_id=received_task.id,
+                    state=(
+                        received_task.status.state if received_task.status else None
+                    ),
+                    text=artifact_text,
+                )
+            else:
+                yield StreamEvent(
+                    event_type="task",
+                    task=received_task,
+                    context_id=received_task.context_id,
+                    task_id=received_task.id,
+                    state=(
+                        received_task.status.state if received_task.status else None
+                    ),
+                    text=extract_text_from_task(received_task),
+                )
+
+    async def set_push_config(
+        self,
+        task_id: str,
+        webhook_url: str,
+        authentication_token: str | None = None,
+    ) -> TaskPushNotificationConfig:
+        """Set push notification configuration for a task.
+
+        Args:
+            task_id: ID of the task
+            webhook_url: Webhook URL to receive notifications
+            authentication_token: Optional authentication token
+
+        Returns:
+            The created push notification configuration
+        """
+        client = await self._get_or_create_client()
+
+        push_config = TaskPushNotificationConfig(
+            task_id=task_id,
+            push_notification_config=PushNotificationConfig(
+                url=webhook_url,
+                token=authentication_token,
+            ),
+        )
+        logger.info("Setting push config for task %s: %s", task_id, webhook_url)
+
+        return await client.set_task_callback(push_config)

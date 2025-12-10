@@ -1,10 +1,12 @@
-import logging
+"""Input panel component for composing and sending messages."""
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.widgets import Button, Input
 
-logger = logging.getLogger(__name__)
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
 
 
 class InputPanel(Container):
@@ -19,14 +21,15 @@ class InputPanel(Container):
         self.border_title = "INPUT"
         self.border_subtitle = "PRESS ENTER TO SEND"
         self.query_one("#send-btn", Button).can_focus = False
+        logger.debug("Input panel mounted")
 
     def get_message(self) -> str:
         """Get and clear the current message input."""
         message_input = self.query_one("#message-input", Input)
-        message = message_input.value.strip()
+        message_text = message_input.value.strip()
         message_input.value = ""
-        return message
+        return message_text
 
     def focus_input(self) -> None:
-        """Focus the message input."""
+        """Focus the message input field."""
         self.query_one("#message-input", Input).focus()

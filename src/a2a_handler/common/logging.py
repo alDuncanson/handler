@@ -1,4 +1,7 @@
-"""Unified Rich logging configuration for Handler packages."""
+"""Rich logging configuration for Handler.
+
+Provides themed console output and structured logging across all modules.
+"""
 
 import logging
 from typing import Literal

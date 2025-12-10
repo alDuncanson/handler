@@ -1,5 +1,12 @@
-"""Common utilities for Handler."""
+"""Common utilities for the Handler package.
 
+Provides logging, formatting, and output utilities shared across modules.
+"""
+
+from .formatting import (
+    format_field_name,
+    format_value,
+)
 from .logging import (
     HANDLER_THEME,
     LogLevel,
@@ -7,29 +14,21 @@ from .logging import (
     get_logger,
     setup_logging,
 )
-from .printing import (
-    BorderStyle,
-    print_error,
-    print_info,
-    print_json,
-    print_markdown,
-    print_panel,
-    print_success,
-    print_warning,
+from .output import (
+    Output,
+    OutputMode,
+    get_output_context,
 )
 
 __all__ = [
-    "BorderStyle",
     "HANDLER_THEME",
     "LogLevel",
+    "Output",
+    "OutputMode",
     "console",
+    "format_field_name",
+    "format_value",
     "get_logger",
-    "print_error",
-    "print_info",
-    "print_json",
-    "print_markdown",
-    "print_panel",
-    "print_success",
-    "print_warning",
+    "get_output_context",
     "setup_logging",
 ]

@@ -1,4 +1,6 @@
-from .agent_card import AgentCardPanel
+"""TUI component widgets for the Handler application."""
+
+from .card import AgentCardPanel
 from .contact import ContactPanel
 from .footer import Footer
 from .input import InputPanel
