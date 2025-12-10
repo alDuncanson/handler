@@ -259,18 +259,7 @@ def message_send(
     push_token: Optional[str],
     output: str,
 ) -> None:
-    """Send a message to an A2A agent.
-
-    Send `TEXT` to the agent at `AGENT_URL` and display the response.
-
-    Examples:
-
-        handler message send http://localhost:8000 "Hello, agent!"
-
-        handler message send http://localhost:8000 "Continue our chat" --continue
-
-        handler message send http://localhost:8000 "Stream this" --stream
-    """
+    """Send a message to an agent and receive a response."""
     log.info("Sending message to %s", agent_url)
 
     if use_session and not context_id:
@@ -341,14 +330,7 @@ def message_stream(
     push_token: Optional[str],
     output: str,
 ) -> None:
-    """Stream a message response from an A2A agent.
-
-    Send `TEXT` to `AGENT_URL` and stream the response in real-time.
-
-    Examples:
-
-        handler message stream http://localhost:8000 "Tell me a story"
-    """
+    """Send a message and stream the response in real-time."""
     ctx.invoke(
         message_send,
         agent_url=agent_url,
@@ -473,14 +455,7 @@ def task_get(
     history_length: Optional[int],
     output: str,
 ) -> None:
-    """Get the current state of a task.
-
-    Retrieve `TASK_ID` from the agent at `AGENT_URL`.
-
-    Examples:
-
-        handler task get http://localhost:8000 abc123
-    """
+    """Retrieve the current status of a task."""
     log.info("Getting task %s from %s", task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -510,14 +485,7 @@ def task_get(
 )
 @click.pass_context
 def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -> None:
-    """Cancel a running task.
-
-    Cancel `TASK_ID` on the agent at `AGENT_URL`.
-
-    Examples:
-
-        handler task cancel http://localhost:8000 abc123
-    """
+    """Request cancellation of a task."""
     log.info("Canceling task %s at %s", task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -557,14 +525,7 @@ def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -
 def task_resubscribe(
     ctx: click.Context, agent_url: str, task_id: str, output: str
 ) -> None:
-    """Resubscribe to a task's event stream.
-
-    Resume streaming `TASK_ID` from `AGENT_URL` after disconnecting.
-
-    Examples:
-
-        handler task resubscribe http://localhost:8000 abc123
-    """
+    """Resubscribe to a task's SSE stream after disconnection."""
     log.info("Resubscribing to task %s at %s", task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -659,14 +620,7 @@ def notification_set(
     token: Optional[str],
     output: str,
 ) -> None:
-    """Set a push notification webhook for a task.
-
-    Configure `TASK_ID` on `AGENT_URL` to send status updates to a webhook.
-
-    Examples:
-
-        handler task notification set http://localhost:8000 abc123 --url http://localhost:9000/webhook
-    """
+    """Configure a push notification webhook for a task."""
     log.info("Setting push config for task %s at %s", task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -722,14 +676,7 @@ def notification_get(
     config_id: str,
     output: str,
 ) -> None:
-    """Get a push notification config by ID.
-
-    Retrieve `CONFIG_ID` for `TASK_ID` from `AGENT_URL`.
-
-    Examples:
-
-        handler task notification get http://localhost:8000 abc123 config456
-    """
+    """Retrieve a push notification config by ID."""
     log.info("Getting push config %s for task %s at %s", config_id, task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -777,14 +724,7 @@ def notification_list(
     task_id: str,
     output: str,
 ) -> None:
-    """List all push notification configs for a task.
-
-    List all configs for `TASK_ID` on `AGENT_URL`.
-
-    Examples:
-
-        handler task notification list http://localhost:8000 abc123
-    """
+    """List all push notification configs for a task."""
     log.info("Listing push configs for task %s at %s", task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -838,14 +778,7 @@ def notification_delete(
     config_id: str,
     output: str,
 ) -> None:
-    """Delete a push notification config.
-
-    Delete `CONFIG_ID` for `TASK_ID` on `AGENT_URL`.
-
-    Examples:
-
-        handler task notification delete http://localhost:8000 abc123 config456
-    """
+    """Delete a push notification config."""
     log.info("Deleting push config %s for task %s at %s", config_id, task_id, agent_url)
     mode = get_mode(ctx, output)
 
@@ -899,16 +832,7 @@ def card() -> None:
 def card_get(
     ctx: click.Context, agent_url: str, authenticated: bool, output: str
 ) -> None:
-    """Fetch and display an agent card.
-
-    Retrieve the agent card from `AGENT_URL`.
-
-    Examples:
-
-        handler card get http://localhost:8000
-
-        handler card get http://localhost:8000 --authenticated
-    """
+    """Retrieve an agent's card."""
     log.info("Fetching agent card from %s", agent_url)
     mode = get_mode(ctx, output)
 
@@ -981,16 +905,7 @@ def _format_agent_card(card_data: object, out: object) -> None:
 )
 @click.pass_context
 def card_validate(ctx: click.Context, source: str, output: str) -> None:
-    """Validate an agent card from a URL or file path.
-
-    Validate the agent card at `SOURCE` (URL or file path).
-
-    Examples:
-
-        handler card validate http://localhost:8000
-
-        handler card validate ./my-agent-card.json
-    """
+    """Validate an agent card from URL or file."""
     log.info("Validating agent card from %s", source)
     is_url = source.startswith(("http://", "https://"))
     mode = get_mode(ctx, output)
@@ -1066,14 +981,7 @@ def server() -> None:
 @click.option("--host", default="0.0.0.0", help="Host to bind to", show_default=True)
 @click.option("--port", default=8000, help="Port to bind to", show_default=True)
 def server_agent(host: str, port: int) -> None:
-    """Start the A2A agent server backed by Ollama.
-
-    Examples:
-
-        handler server agent
-
-        handler server agent --port 9000
-    """
+    """Start a local A2A agent server."""
     log.info("Starting A2A server on %s:%d", host, port)
     run_server(host, port)
 
@@ -1082,16 +990,7 @@ def server_agent(host: str, port: int) -> None:
 @click.option("--host", default="127.0.0.1", help="Host to bind to", show_default=True)
 @click.option("--port", default=9000, help="Port to bind to", show_default=True)
 def server_push(host: str, port: int) -> None:
-    """Start a local webhook server for push notifications.
-
-    Receives and displays push notifications from A2A agents. Useful for testing.
-
-    Examples:
-
-        handler server push
-
-        handler server push --port 9001
-    """
+    """Start a local webhook server for receiving push notifications."""
     log.info("Starting webhook server on %s:%d", host, port)
     run_webhook_server(host, port)
 
@@ -1110,14 +1009,7 @@ def session() -> None:
 @session.command("list")
 @click.pass_context
 def session_list(ctx: click.Context) -> None:
-    """List all saved sessions.
-
-    Display all agents with saved session state.
-
-    Examples:
-
-        handler session list
-    """
+    """List all saved sessions."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
     with get_output_context(mode) as out:
@@ -1142,14 +1034,7 @@ def session_list(ctx: click.Context) -> None:
 @click.argument("agent_url")
 @click.pass_context
 def session_show(ctx: click.Context, agent_url: str) -> None:
-    """Show the saved session for an agent.
-
-    Display the session for `AGENT_URL`.
-
-    Examples:
-
-        handler session show http://localhost:8000
-    """
+    """Display session state for an agent."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
     with get_output_context(mode) as out:
@@ -1163,14 +1048,7 @@ def session_show(ctx: click.Context, agent_url: str) -> None:
 @click.argument("agent_url")
 @click.pass_context
 def session_get(ctx: click.Context, agent_url: str) -> None:
-    """Get a specific session value.
-
-    Retrieve the session for `AGENT_URL`.
-
-    Examples:
-
-        handler session get http://localhost:8000
-    """
+    """Get session state for an agent (alias for show)."""
     ctx.invoke(session_show, agent_url=agent_url)
 
 
@@ -1181,16 +1059,7 @@ def session_get(ctx: click.Context, agent_url: str) -> None:
 def session_clear(
     ctx: click.Context, agent_url: Optional[str], clear_all: bool
 ) -> None:
-    """Clear saved sessions.
-
-    Clear the session for `AGENT_URL`, or use `--all` to clear all sessions.
-
-    Examples:
-
-        handler session clear http://localhost:8000
-
-        handler session clear --all
-    """
+    """Clear saved session state."""
     mode = "raw" if ctx.obj.get("raw") else "text"
 
     with get_output_context(mode) as out:
@@ -1211,23 +1080,13 @@ def session_clear(
 
 @cli.command()
 def version() -> None:
-    """Display the current version.
-
-    Examples:
-
-        handler version
-    """
+    """Display the current version."""
     click.echo(__version__)
 
 
 @cli.command()
 def tui() -> None:
-    """Launch the interactive TUI.
-
-    Examples:
-
-        handler tui
-    """
+    """Launch the interactive terminal interface."""
     log.info("Launching TUI")
     logging.getLogger().handlers = []
     app = HandlerTUI()
