@@ -11,7 +11,6 @@ import httpx
 from a2a.client import A2ACardResolver, Client, ClientConfig, ClientFactory
 from a2a.types import (
     AgentCard,
-    GetTaskPushNotificationConfigParams,
     Message,
     Part,
     PushNotificationConfig,
@@ -517,27 +516,3 @@ class A2AService:
         logger.info("Setting push config for task %s: %s", task_id, webhook_url)
 
         return await client.set_task_callback(push_config)
-
-    async def get_push_config(
-        self,
-        task_id: str,
-        config_id: str,
-    ) -> TaskPushNotificationConfig:
-        """Get push notification configuration for a task.
-
-        Args:
-            task_id: ID of the task
-            config_id: ID of the push config
-
-        Returns:
-            The push notification configuration
-        """
-        client = await self._get_or_create_client()
-
-        query_params = GetTaskPushNotificationConfigParams(
-            id=task_id,
-            push_notification_config_id=config_id,
-        )
-        logger.info("Getting push config %s for task %s", config_id, task_id)
-
-        return await client.get_task_callback(query_params)

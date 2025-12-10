@@ -3,7 +3,7 @@
 Command structure based on A2A protocol method mapping:
 - message send/stream: Send messages to agents
 - task get/cancel/resubscribe: Manage tasks
-- task notification set/get: Push notification config
+- task notification set: Push notification config
 - card get/validate: Agent card operations
 - server agent/push: Run local servers
 - session list/show/get/clear: Manage saved sessions
@@ -123,7 +123,7 @@ click.rich_click.COMMAND_GROUPS = {
         {"name": "Push Notifications", "commands": ["notification"]},
     ],
     "handler task notification": [
-        {"name": "Notification Commands", "commands": ["set", "get"]},
+        {"name": "Notification Commands", "commands": ["set"]},
     ],
     "handler card": [
         {"name": "Card Commands", "commands": ["get", "validate"]},
@@ -655,56 +655,6 @@ def notification_set(
                 raise click.Abort()
 
     asyncio.run(do_set())
-
-
-@task_notification.command("get")
-@click.argument("agent_url")
-@click.argument("task_id")
-@click.argument("config_id")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def notification_get(
-    ctx: click.Context,
-    agent_url: str,
-    task_id: str,
-    config_id: str,
-    output: str,
-) -> None:
-    """Retrieve a push notification config by ID."""
-    log.info("Getting push config %s for task %s at %s", config_id, task_id, agent_url)
-    mode = get_mode(ctx, output)
-
-    async def do_get() -> None:
-        with get_output_context(mode) as out:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    config = await service.get_push_config(task_id, config_id)
-
-                    if output == "json":
-                        out.out_json(config.model_dump())
-                    else:
-                        out.out_header("Push Notification Config")
-                        out.out_field("Task ID", config.task_id)
-                        if config.push_notification_config:
-                            pnc = config.push_notification_config
-                            out.out_field("URL", pnc.url)
-                            if pnc.token:
-                                out.out_field("Token", f"{pnc.token[:20]}...")
-                            if pnc.id:
-                                out.out_field("Config ID", pnc.id)
-
-            except Exception as e:
-                _handle_client_error(e, agent_url, out)
-                raise click.Abort()
-
-    asyncio.run(do_get())
 
 
 # ============================================================================
