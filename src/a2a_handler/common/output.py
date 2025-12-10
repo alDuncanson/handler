@@ -33,7 +33,7 @@ def _strip_markup(text: str) -> str:
     return re.sub(r"\[/?[^\]]+\]", "", text)
 
 
-class OutputContext:
+class Output:
     """Manages output mode and styling.
 
     Provides a unified interface for outputting text, fields, JSON, and
@@ -58,11 +58,11 @@ class OutputContext:
         else:
             console.print(text, markup=self.mode == OutputMode.TEXT)
 
-    def out_line(self, text: str, style: str | None = None) -> None:
+    def line(self, text: str, style: str | None = None) -> None:
         """Print a line of text with optional style."""
         self._print(text, style)
 
-    def out_field(
+    def field(
         self,
         name: str,
         value: Any,
@@ -82,28 +82,28 @@ class OutputContext:
         else:
             self._raw_console.print(f"{name}: {_strip_markup(value_str)}")
 
-    def out_header(self, text: str) -> None:
+    def header(self, text: str) -> None:
         """Print a section header."""
         if self.mode == OutputMode.TEXT:
             console.print(f"\n[bold]{text}[/bold]")
         else:
             self._raw_console.print(f"\n{text}")
 
-    def out_subheader(self, text: str) -> None:
+    def subheader(self, text: str) -> None:
         """Print a subheader (less prominent than header)."""
         if self.mode == OutputMode.TEXT:
             console.print(f"[bold cyan]{text}[/bold cyan]")
         else:
             self._raw_console.print(text)
 
-    def out_blank(self) -> None:
+    def blank(self) -> None:
         """Print a blank line."""
         if self.mode == OutputMode.TEXT:
             console.print()
         else:
             self._raw_console.print()
 
-    def out_state(self, name: str, state: str) -> None:
+    def state(self, name: str, state: str) -> None:
         """Print a state field with appropriate coloring."""
         if self.mode == OutputMode.TEXT:
             lower = state.lower()
@@ -121,35 +121,35 @@ class OutputContext:
         else:
             self._raw_console.print(f"{name}: {state}")
 
-    def out_success(self, text: str) -> None:
+    def success(self, text: str) -> None:
         """Print a success message."""
         self._print(text, "green")
 
-    def out_error(self, text: str) -> None:
+    def error(self, text: str) -> None:
         """Print an error message."""
         self._print(text, "red bold")
 
-    def out_warning(self, text: str) -> None:
+    def warning(self, text: str) -> None:
         """Print a warning message."""
         self._print(text, "yellow")
 
-    def out_dim(self, text: str) -> None:
+    def dim(self, text: str) -> None:
         """Print dimmed/muted text."""
         self._print(text, "dim")
 
-    def out_json(self, data: Any) -> None:
+    def json(self, data: Any) -> None:
         """Print JSON data."""
         json_str = json_module.dumps(data, indent=2, default=str)
         self._raw_console.print(json_str)
 
-    def out_markdown(self, text: str) -> None:
+    def markdown(self, text: str) -> None:
         """Print markdown content."""
         if self.mode == OutputMode.TEXT:
             console.print(Markdown(text))
         else:
             self._raw_console.print(text)
 
-    def out_list_item(self, text: str, bullet: str = "•") -> None:
+    def list_item(self, text: str, bullet: str = "•") -> None:
         """Print a list item with bullet."""
         if self.mode == OutputMode.TEXT:
             console.print(f"  [dim]{bullet}[/dim] {text}")
@@ -157,21 +157,21 @@ class OutputContext:
             self._raw_console.print(f"  {bullet} {_strip_markup(text)}")
 
 
-_current_context: OutputContext | None = None
+_current_context: Output | None = None
 
 
 @contextmanager
 def get_output_context(
     mode: OutputMode | str,
-) -> Generator[OutputContext, None, None]:
+) -> Generator[Output, None, None]:
     global _current_context
 
     if isinstance(mode, str):
         mode = OutputMode(mode)
 
-    ctx = OutputContext(mode)
-    _current_context = ctx
+    context = Output(mode)
+    _current_context = context
     try:
-        yield ctx
+        yield context
     finally:
         _current_context = None

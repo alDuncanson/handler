@@ -11,7 +11,7 @@ Command structure based on A2A protocol method mapping:
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 logging.getLogger().setLevel(logging.WARNING)
 
@@ -22,6 +22,7 @@ from a2a.client.errors import (
     A2AClientHTTPError,
     A2AClientTimeoutError,
 )
+from a2a.types import AgentCard
 
 from a2a_handler import __version__
 from a2a_handler.common import (
@@ -31,6 +32,7 @@ from a2a_handler.common import (
     get_output_context,
     setup_logging,
 )
+from a2a_handler.common.output import Output
 from a2a_handler.server import run_server
 from a2a_handler.service import A2AService, SendResult, TaskResult
 from a2a_handler.session import (
@@ -146,43 +148,41 @@ def build_http_client(timeout: int = TIMEOUT) -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=timeout)
 
 
-def _handle_client_error(e: Exception, agent_url: str, ctx: object) -> None:
+def _handle_client_error(e: Exception, agent_url: str, context: object) -> None:
     """Handle A2A client errors with appropriate messages."""
-    from a2a_handler.common.output import OutputContext
+    output = context if isinstance(context, Output) else None
 
-    out = ctx if isinstance(ctx, OutputContext) else None
-
-    msg = ""
+    message = ""
     if isinstance(e, A2AClientTimeoutError):
         log.error("Request to %s timed out", agent_url)
-        msg = "Request timed out"
+        message = "Request timed out"
     elif isinstance(e, A2AClientHTTPError):
         log.error("A2A client error: %s", e)
-        msg = (
+        message = (
             f"Connection failed: Is the server running at {agent_url}?"
             if "connection" in str(e).lower()
             else str(e)
         )
     elif isinstance(e, A2AClientError):
         log.error("A2A client error: %s", e)
-        msg = str(e)
+        message = str(e)
     elif isinstance(e, httpx.ConnectError):
         log.error("Connection refused to %s", agent_url)
-        msg = f"Connection refused: Is the server running at {agent_url}?"
+        message = f"Connection refused: Is the server running at {agent_url}?"
     elif isinstance(e, httpx.TimeoutException):
         log.error("Request to %s timed out", agent_url)
-        msg = "Request timed out"
+        message = "Request timed out"
     elif isinstance(e, httpx.HTTPStatusError):
         log.error("HTTP error %d from %s", e.response.status_code, agent_url)
-        msg = f"HTTP {e.response.status_code} - {e.response.text}"
+        message = f"HTTP {e.response.status_code} - {e.response.text}"
     else:
         log.exception("Failed request to %s", agent_url)
-        msg = str(e)
+        message = str(e)
 
-    if out:
-        out.out_error(msg)
+    if output:
+        output.error(message)
     else:
-        click.echo(f"Error: {msg}", err=True)
+        click.echo(f"Error: {message}", err=True)
 
 
 # ============================================================================
@@ -283,7 +283,7 @@ def message_send(
                     )
 
                     if mode != "json":
-                        out.out_dim(f"Sending to {agent_url}...")
+                        out.dim(f"Sending to {agent_url}...")
 
                     if stream:
                         await _stream_message(
@@ -352,12 +352,10 @@ async def _stream_message(
     task_id: Optional[str],
     agent_url: str,
     out: object,
-    output: str,
+    output_format: str,
 ) -> None:
     """Stream a message and handle events."""
-    from a2a_handler.common.output import OutputContext
-
-    out_ctx = out if isinstance(out, OutputContext) else None
+    output = out if isinstance(out, Output) else None
     collected_text: list[str] = []
     last_context_id: str | None = None
     last_task_id: str | None = None
@@ -368,7 +366,7 @@ async def _stream_message(
         last_task_id = event.task_id or last_task_id
         last_state = event.state or last_state
 
-        if output == "json":
+        if output_format == "json":
             event_data = {
                 "type": event.event_type,
                 "context_id": event.context_id,
@@ -376,51 +374,49 @@ async def _stream_message(
                 "state": event.state.value if event.state else None,
                 "text": event.text,
             }
-            if out_ctx:
-                out_ctx.out_json(event_data)
+            if output:
+                output.json(event_data)
         else:
             if event.text and event.text not in collected_text:
-                if out_ctx:
-                    out_ctx.out_line(event.text)
+                if output:
+                    output.line(event.text)
                 collected_text.append(event.text)
 
     update_session(agent_url, last_context_id, last_task_id)
 
-    if output != "json" and out_ctx:
-        out_ctx.out_blank()
+    if output_format != "json" and output:
+        output.blank()
         if last_context_id:
-            out_ctx.out_field("Context ID", last_context_id, dim_value=True)
+            output.field("Context ID", last_context_id, dim_value=True)
         if last_task_id:
-            out_ctx.out_field("Task ID", last_task_id, dim_value=True)
+            output.field("Task ID", last_task_id, dim_value=True)
         if last_state:
-            out_ctx.out_state("State", last_state.value)
+            output.state("State", last_state.value)
 
 
-def _format_send_result(result: SendResult, out: object, output: str) -> None:
+def _format_send_result(result: SendResult, out: object, output_format: str) -> None:
     """Format and display a send result."""
-    from a2a_handler.common.output import OutputContext
-
-    out_ctx = out if isinstance(out, OutputContext) else None
-    if not out_ctx:
+    output = out if isinstance(out, Output) else None
+    if not output:
         return
 
-    if output == "json":
-        out_ctx.out_json(result.raw)
+    if output_format == "json":
+        output.json(result.raw)
         return
 
-    out_ctx.out_blank()
+    output.blank()
     if result.context_id:
-        out_ctx.out_field("Context ID", result.context_id, dim_value=True)
+        output.field("Context ID", result.context_id, dim_value=True)
     if result.task_id:
-        out_ctx.out_field("Task ID", result.task_id, dim_value=True)
+        output.field("Task ID", result.task_id, dim_value=True)
     if result.state:
-        out_ctx.out_state("State", result.state.value)
+        output.state("State", result.state.value)
 
-    out_ctx.out_blank()
+    output.blank()
     if result.text:
-        out_ctx.out_markdown(result.text)
+        output.markdown(result.text)
     else:
-        out_ctx.out_dim("No text content in response")
+        output.dim("No text content in response")
 
 
 # ============================================================================
@@ -496,13 +492,13 @@ def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -
                     service = A2AService(http_client, agent_url)
 
                     if mode != "json":
-                        out.out_dim(f"Canceling task {task_id}...")
+                        out.dim(f"Canceling task {task_id}...")
 
                     result = await service.cancel_task(task_id)
                     _format_task_result(result, out, output)
 
                     if mode != "json":
-                        out.out_success("Task canceled")
+                        out.success("Task canceled")
 
             except Exception as e:
                 _handle_client_error(e, agent_url, out)
@@ -536,11 +532,11 @@ def task_resubscribe(
                     service = A2AService(http_client, agent_url)
 
                     if mode != "json":
-                        out.out_dim(f"Resubscribing to task {task_id}...")
+                        out.dim(f"Resubscribing to task {task_id}...")
 
                     async for event in service.resubscribe(task_id):
                         if output == "json":
-                            out.out_json(
+                            out.json(
                                 {
                                     "type": event.event_type,
                                     "context_id": event.context_id,
@@ -551,12 +547,12 @@ def task_resubscribe(
                             )
                         else:
                             if event.event_type == "status":
-                                out.out_state(
+                                out.state(
                                     "Status",
                                     event.state.value if event.state else "unknown",
                                 )
                             elif event.text:
-                                out.out_line(event.text)
+                                out.line(event.text)
 
             except Exception as e:
                 _handle_client_error(e, agent_url, out)
@@ -565,27 +561,25 @@ def task_resubscribe(
     asyncio.run(do_resubscribe())
 
 
-def _format_task_result(result: TaskResult, out: object, output: str) -> None:
+def _format_task_result(result: TaskResult, out: object, output_format: str) -> None:
     """Format and display a task result."""
-    from a2a_handler.common.output import OutputContext
-
-    out_ctx = out if isinstance(out, OutputContext) else None
-    if not out_ctx:
+    output = out if isinstance(out, Output) else None
+    if not output:
         return
 
-    if output == "json":
-        out_ctx.out_json(result.raw)
+    if output_format == "json":
+        output.json(result.raw)
         return
 
-    out_ctx.out_blank()
-    out_ctx.out_field("Task ID", result.task_id, dim_value=True)
-    out_ctx.out_state("State", result.state.value)
+    output.blank()
+    output.field("Task ID", result.task_id, dim_value=True)
+    output.state("State", result.state.value)
     if result.context_id:
-        out_ctx.out_field("Context ID", result.context_id, dim_value=True)
+        output.field("Context ID", result.context_id, dim_value=True)
 
     if result.text:
-        out_ctx.out_blank()
-        out_ctx.out_markdown(result.text)
+        output.blank()
+        output.markdown(result.text)
 
 
 # ============================================================================
@@ -631,24 +625,22 @@ def notification_set(
                     service = A2AService(http_client, agent_url)
 
                     if mode != "json":
-                        out.out_dim(
-                            f"Setting notification config for task {task_id}..."
-                        )
+                        out.dim(f"Setting notification config for task {task_id}...")
 
                     config = await service.set_push_config(task_id, url, token)
 
                     if output == "json":
-                        out.out_json(config.model_dump())
+                        out.json(config.model_dump())
                     else:
-                        out.out_success("Push notification config set")
-                        out.out_field("Task ID", config.task_id)
+                        out.success("Push notification config set")
+                        out.field("Task ID", config.task_id)
                         if config.push_notification_config:
                             pnc = config.push_notification_config
-                            out.out_field("URL", pnc.url)
+                            out.field("URL", pnc.url)
                             if pnc.token:
-                                out.out_field("Token", f"{pnc.token[:20]}...")
+                                out.field("Token", f"{pnc.token[:20]}...")
                             if pnc.id:
-                                out.out_field("Config ID", pnc.id)
+                                out.field("Config ID", pnc.id)
 
             except Exception as e:
                 _handle_client_error(e, agent_url, out)
@@ -697,7 +689,7 @@ def card_get(
                     log.info("Retrieved card for agent: %s", card_data.name)
 
                     if output == "json":
-                        out.out_json(card_data.model_dump())
+                        out.json(card_data.model_dump())
                     else:
                         _format_agent_card(card_data, out)
 
@@ -710,14 +702,8 @@ def card_get(
 
 def _format_agent_card(card_data: object, out: object) -> None:
     """Format and display an agent card."""
-    from typing import Any
-
-    from a2a.types import AgentCard
-
-    from a2a_handler.common.output import OutputContext
-
-    out_ctx = out if isinstance(out, OutputContext) else None
-    if not out_ctx:
+    output = out if isinstance(out, Output) else None
+    if not output:
         return
 
     card_dict: dict[str, Any]
@@ -728,11 +714,11 @@ def _format_agent_card(card_data: object, out: object) -> None:
     name = card_dict.pop("name", "Unknown Agent")
     description = card_dict.pop("description", "")
 
-    out_ctx.out_header(name)
+    output.header(name)
     if description:
-        out_ctx.out_line(description)
+        output.line(description)
 
-    out_ctx.out_blank()
+    output.blank()
     for key, value in card_dict.items():
         if key.startswith("_"):
             continue
@@ -740,10 +726,10 @@ def _format_agent_card(card_data: object, out: object) -> None:
         if formatted:
             field_name = format_field_name(key)
             if "\n" in formatted:
-                out_ctx.out_line(f"{field_name}:")
-                out_ctx.out_line(formatted)
+                output.line(f"{field_name}:")
+                output.line(formatted)
             else:
-                out_ctx.out_field(field_name, formatted)
+                output.field(field_name, formatted)
 
 
 @card.command("validate")
@@ -779,17 +765,15 @@ def card_validate(ctx: click.Context, source: str, output: str) -> None:
 
 
 def _format_validation_result(
-    result: ValidationResult, out: object, output: str
+    result: ValidationResult, out: object, output_format: str
 ) -> None:
     """Format and display validation result."""
-    from a2a_handler.common.output import OutputContext
-
-    out_ctx = out if isinstance(out, OutputContext) else None
-    if not out_ctx:
+    output = out if isinstance(out, Output) else None
+    if not output:
         return
 
-    if output == "json":
-        out_ctx.out_json(
+    if output_format == "json":
+        output.json(
             {
                 "valid": result.valid,
                 "source": result.source,
@@ -805,17 +789,17 @@ def _format_validation_result(
         return
 
     if result.valid:
-        out_ctx.out_success("Valid Agent Card")
-        out_ctx.out_field("Agent", result.agent_name)
-        out_ctx.out_field("Protocol Version", result.protocol_version)
-        out_ctx.out_field("Source", result.source)
+        output.success("Valid Agent Card")
+        output.field("Agent", result.agent_name)
+        output.field("Protocol Version", result.protocol_version)
+        output.field("Source", result.source)
     else:
-        out_ctx.out_error("Invalid Agent Card")
-        out_ctx.out_field("Source", result.source)
-        out_ctx.out_blank()
-        out_ctx.out_line(f"Errors ({len(result.issues)}):")
+        output.error("Invalid Agent Card")
+        output.field("Source", result.source)
+        output.blank()
+        output.line(f"Errors ({len(result.issues)}):")
         for issue in result.issues:
-            out_ctx.out_list_item(f"{issue.field_name}: {issue.message}", bullet="✗")
+            output.list_item(f"{issue.field_name}: {issue.message}", bullet="✗")
 
 
 # ============================================================================
@@ -869,17 +853,17 @@ def session_list(ctx: click.Context) -> None:
         sessions = store.list_all()
 
         if not sessions:
-            out.out_dim("No saved sessions")
+            out.dim("No saved sessions")
             return
 
-        out.out_header(f"Saved Sessions ({len(sessions)})")
+        out.header(f"Saved Sessions ({len(sessions)})")
         for s in sessions:
-            out.out_blank()
-            out.out_subheader(s.agent_url)
+            out.blank()
+            out.subheader(s.agent_url)
             if s.context_id:
-                out.out_field("Context ID", s.context_id, dim_value=True)
+                out.field("Context ID", s.context_id, dim_value=True)
             if s.task_id:
-                out.out_field("Task ID", s.task_id, dim_value=True)
+                out.field("Task ID", s.task_id, dim_value=True)
 
 
 @session.command("show")
@@ -891,9 +875,9 @@ def session_show(ctx: click.Context, agent_url: str) -> None:
 
     with get_output_context(mode) as out:
         s = get_session(agent_url)
-        out.out_header(f"Session for {agent_url}")
-        out.out_field("Context ID", s.context_id or "none", dim_value=not s.context_id)
-        out.out_field("Task ID", s.task_id or "none", dim_value=not s.task_id)
+        out.header(f"Session for {agent_url}")
+        out.field("Context ID", s.context_id or "none", dim_value=not s.context_id)
+        out.field("Task ID", s.task_id or "none", dim_value=not s.task_id)
 
 
 @session.command("clear")
@@ -909,12 +893,12 @@ def session_clear(
     with get_output_context(mode) as out:
         if clear_all:
             clear_session()
-            out.out_success("Cleared all sessions")
+            out.success("Cleared all sessions")
         elif agent_url:
             clear_session(agent_url)
-            out.out_success(f"Cleared session for {agent_url}")
+            out.success(f"Cleared session for {agent_url}")
         else:
-            out.out_warning("Provide AGENT_URL or use --all to clear sessions")
+            out.warning("Provide AGENT_URL or use --all to clear sessions")
 
 
 # ============================================================================

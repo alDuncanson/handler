@@ -12,7 +12,7 @@ from .logging import (
     setup_logging,
 )
 from .output import (
-    OutputContext,
+    Output,
     OutputMode,
     get_output_context,
 )
@@ -20,7 +20,7 @@ from .output import (
 __all__ = [
     "HANDLER_THEME",
     "LogLevel",
-    "OutputContext",
+    "Output",
     "OutputMode",
     "console",
     "format_field_name",
