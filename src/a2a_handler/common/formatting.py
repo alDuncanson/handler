@@ -1,4 +1,7 @@
-"""Formatting utilities for Handler."""
+"""Formatting utilities for displaying structured data.
+
+Provides functions for converting field names and values to human-readable format.
+"""
 
 import re
 from typing import Any

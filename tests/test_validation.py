@@ -1,4 +1,4 @@
-"""Tests for A2A protocol validation."""
+"""Tests for the agent card validation module."""
 
 import json
 import tempfile

@@ -1,4 +1,7 @@
-"""Handler TUI application."""
+"""Main TUI application for Handler.
+
+Provides the Textual-based terminal interface for agent interaction.
+"""
 
 import logging
 import uuid

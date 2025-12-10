@@ -1,4 +1,4 @@
-"""Tests for A2A service layer."""
+"""Tests for the A2A service layer module."""
 
 from a2a.types import Part, Task, TaskState, TaskStatus, TextPart
 

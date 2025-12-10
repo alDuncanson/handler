@@ -1,4 +1,7 @@
-"""Output formatting system with mode-aware styling."""
+"""Output formatting system with mode-aware styling.
+
+Provides a unified output interface supporting raw, text, and JSON modes.
+"""
 
 from __future__ import annotations
 

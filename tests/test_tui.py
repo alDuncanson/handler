@@ -1,3 +1,5 @@
+"""Tests for the TUI application."""
+
 import pytest
 
 from a2a_handler.tui import HandlerTUI

@@ -1,4 +1,4 @@
-"""Messages panel component for chat display."""
+"""Messages panel component for displaying chat history."""
 
 from datetime import datetime
 from typing import Any

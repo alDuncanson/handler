@@ -1,4 +1,7 @@
-"""A2A protocol validation utilities."""
+"""Agent card validation utilities for the A2A protocol.
+
+Validates agent cards from URLs or local files using the A2A SDK.
+"""
 
 import json
 from dataclasses import dataclass, field

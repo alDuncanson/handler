@@ -1,4 +1,4 @@
-"""Tests for session state management."""
+"""Tests for the session state management module."""
 
 import tempfile
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""Tests for formatting utilities."""
+"""Tests for the formatting utilities module."""
 
 from a2a_handler.common.formatting import format_field_name, format_value
 

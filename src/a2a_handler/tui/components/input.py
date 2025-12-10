@@ -1,4 +1,4 @@
-"""Input panel component for message composition."""
+"""Input panel component for composing and sending messages."""
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal

@@ -1,4 +1,4 @@
-"""Contact panel component for agent connection management."""
+"""Contact panel component for managing agent connections."""
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal

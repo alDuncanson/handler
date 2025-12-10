@@ -1,4 +1,4 @@
-"""Tests for webhook server."""
+"""Tests for the webhook server module."""
 
 from datetime import datetime
 

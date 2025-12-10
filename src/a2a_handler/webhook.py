@@ -1,7 +1,6 @@
-"""Local webhook server for receiving A2A push notifications.
+"""Webhook server for receiving A2A push notifications.
 
-This module provides a simple HTTP server that can receive push notifications
-from A2A agents for testing purposes.
+Provides an HTTP server for receiving and displaying push notifications from A2A agents.
 """
 
 import json

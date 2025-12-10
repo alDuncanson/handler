@@ -1,9 +1,9 @@
-"""Handler CLI - A2A protocol client.
+"""Command-line interface for the Handler A2A protocol client.
 
-Command structure based on A2A protocol method mapping:
+Provides commands for interacting with A2A agents:
 - message send/stream: Send messages to agents
 - task get/cancel/resubscribe: Manage tasks
-- task notification set: Push notification config
+- task notification set: Configure push notifications
 - card get/validate: Agent card operations
 - server agent/push: Run local servers
 - session list/show/clear: Manage saved sessions

@@ -1,4 +1,7 @@
-"""Handler A2A server agent with full push notification support."""
+"""A2A server agent with streaming and push notification support.
+
+Provides a local A2A-compatible agent server for testing and development.
+"""
 
 import os
 from collections.abc import Awaitable, Callable

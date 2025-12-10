@@ -1,4 +1,4 @@
-"""Footer component with keyboard shortcut buttons."""
+"""Footer component displaying keyboard shortcut buttons."""
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal

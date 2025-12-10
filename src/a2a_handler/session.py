@@ -1,6 +1,6 @@
-"""Session state management for A2A CLI.
+"""Session state management for the Handler CLI.
 
-Provides persistence of context_id and task_id across CLI invocations.
+Persists context_id and task_id across CLI invocations for conversation continuity.
 """
 
 import json

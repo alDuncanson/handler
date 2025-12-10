@@ -1,4 +1,7 @@
-"""Common utilities for Handler."""
+"""Common utilities for the Handler package.
+
+Provides logging, formatting, and output utilities shared across modules.
+"""
 
 from .formatting import (
     format_field_name,

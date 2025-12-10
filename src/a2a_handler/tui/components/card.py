@@ -1,4 +1,4 @@
-"""Agent card panel component for displaying agent metadata."""
+"""Agent card panel component for displaying agent metadata and capabilities."""
 
 import json
 import re

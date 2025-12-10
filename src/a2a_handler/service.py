@@ -1,6 +1,6 @@
 """A2A protocol service layer.
 
-Provides a unified interface for A2A operations, reusable between CLI and TUI.
+Provides a unified interface for A2A operations, shared between the CLI and TUI.
 """
 
 import uuid
