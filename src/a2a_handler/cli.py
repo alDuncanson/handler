@@ -3,7 +3,7 @@
 Command structure based on A2A protocol method mapping:
 - message send/stream: Send messages to agents
 - task get/cancel/resubscribe: Manage tasks
-- task notification set/get/list/delete: Push notification configs
+- task notification set/get: Push notification config
 - card get/validate: Agent card operations
 - server agent/push: Run local servers
 - session list/show/get/clear: Manage saved sessions
@@ -123,7 +123,7 @@ click.rich_click.COMMAND_GROUPS = {
         {"name": "Push Notifications", "commands": ["notification"]},
     ],
     "handler task notification": [
-        {"name": "Notification Commands", "commands": ["set", "get", "list", "delete"]},
+        {"name": "Notification Commands", "commands": ["set", "get"]},
     ],
     "handler card": [
         {"name": "Card Commands", "commands": ["get", "validate"]},
@@ -705,104 +705,6 @@ def notification_get(
                 raise click.Abort()
 
     asyncio.run(do_get())
-
-
-@task_notification.command("list")
-@click.argument("agent_url")
-@click.argument("task_id")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def notification_list(
-    ctx: click.Context,
-    agent_url: str,
-    task_id: str,
-    output: str,
-) -> None:
-    """List all push notification configs for a task."""
-    log.info("Listing push configs for task %s at %s", task_id, agent_url)
-    mode = get_mode(ctx, output)
-
-    async def do_list() -> None:
-        with get_output_context(mode) as out:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    configs = await service.list_push_configs(task_id)
-
-                    if output == "json":
-                        out.out_json([c.model_dump() for c in configs])
-                    else:
-                        if not configs:
-                            out.out_dim("No push notification configs")
-                            return
-
-                        out.out_header(f"Push Notification Configs ({len(configs)})")
-                        for config in configs:
-                            out.out_blank()
-                            out.out_field("Task ID", config.task_id)
-                            if config.push_notification_config:
-                                pnc = config.push_notification_config
-                                out.out_field("URL", pnc.url)
-                                if pnc.id:
-                                    out.out_field("Config ID", pnc.id)
-
-            except Exception as e:
-                _handle_client_error(e, agent_url, out)
-                raise click.Abort()
-
-    asyncio.run(do_list())
-
-
-@task_notification.command("delete")
-@click.argument("agent_url")
-@click.argument("task_id")
-@click.argument("config_id")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def notification_delete(
-    ctx: click.Context,
-    agent_url: str,
-    task_id: str,
-    config_id: str,
-    output: str,
-) -> None:
-    """Delete a push notification config."""
-    log.info("Deleting push config %s for task %s at %s", config_id, task_id, agent_url)
-    mode = get_mode(ctx, output)
-
-    async def do_delete() -> None:
-        with get_output_context(mode) as out:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-
-                    if mode != "json":
-                        out.out_dim(f"Deleting config {config_id}...")
-
-                    await service.delete_push_config(task_id, config_id)
-
-                    if output == "json":
-                        out.out_json({"deleted": True, "config_id": config_id})
-                    else:
-                        out.out_success(f"Deleted config {config_id}")
-
-            except Exception as e:
-                _handle_client_error(e, agent_url, out)
-                raise click.Abort()
-
-    asyncio.run(do_delete())
 
 
 # ============================================================================
