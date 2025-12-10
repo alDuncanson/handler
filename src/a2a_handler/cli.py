@@ -6,7 +6,7 @@ Command structure based on A2A protocol method mapping:
 - task notification set: Push notification config
 - card get/validate: Agent card operations
 - server agent/push: Run local servers
-- session list/show/get/clear: Manage saved sessions
+- session list/show/clear: Manage saved sessions
 """
 
 import asyncio
@@ -132,7 +132,7 @@ click.rich_click.COMMAND_GROUPS = {
         {"name": "Server Commands", "commands": ["agent", "push"]},
     ],
     "handler session": [
-        {"name": "Session Commands", "commands": ["list", "show", "get", "clear"]},
+        {"name": "Session Commands", "commands": ["list", "show", "clear"]},
     ],
 }
 
@@ -894,14 +894,6 @@ def session_show(ctx: click.Context, agent_url: str) -> None:
         out.out_header(f"Session for {agent_url}")
         out.out_field("Context ID", s.context_id or "none", dim_value=not s.context_id)
         out.out_field("Task ID", s.task_id or "none", dim_value=not s.task_id)
-
-
-@session.command("get")
-@click.argument("agent_url")
-@click.pass_context
-def session_get(ctx: click.Context, agent_url: str) -> None:
-    """Get session state for an agent (alias for show)."""
-    ctx.invoke(session_show, agent_url=agent_url)
 
 
 @session.command("clear")
