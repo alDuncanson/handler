@@ -25,6 +25,12 @@ from a2a.client.errors import (
 from a2a.types import AgentCard
 
 from a2a_handler import __version__
+from a2a_handler.auth import (
+    AuthCredentials,
+    AuthType,
+    create_api_key_auth,
+    create_bearer_auth,
+)
 from a2a_handler.common import (
     format_field_name,
     format_value,
@@ -36,9 +42,12 @@ from a2a_handler.common.output import Output
 from a2a_handler.server import run_server
 from a2a_handler.service import A2AService, SendResult, TaskResult
 from a2a_handler.session import (
+    clear_credentials,
     clear_session,
+    get_credentials,
     get_session,
     get_session_store,
+    set_credentials,
     update_session,
 )
 from a2a_handler.tui import HandlerTUI
@@ -71,6 +80,10 @@ click.rich_click.OPTION_GROUPS = {
             "options": ["--stream", "--continue", "--context-id", "--task-id"],
         },
         {
+            "name": "Authentication Options",
+            "options": ["--bearer", "--api-key"],
+        },
+        {
             "name": "Push Notification Options",
             "options": ["--push-url", "--push-token"],
         },
@@ -80,6 +93,10 @@ click.rich_click.OPTION_GROUPS = {
         {
             "name": "Conversation Options",
             "options": ["--continue", "--context-id", "--task-id"],
+        },
+        {
+            "name": "Authentication Options",
+            "options": ["--bearer", "--api-key"],
         },
         {
             "name": "Push Notification Options",
@@ -108,12 +125,20 @@ click.rich_click.OPTION_GROUPS = {
     "handler session clear": [
         {"name": "Clear Options", "options": ["--all", "--help"]},
     ],
+    "handler auth set": [
+        {
+            "name": "Auth Type",
+            "options": ["--bearer", "--api-key", "--api-key-header"],
+        },
+        {"name": "Output Options", "options": ["--output", "--help"]},
+    ],
 }
 
 click.rich_click.COMMAND_GROUPS = {
     "handler": [
         {"name": "Agent Communication", "commands": ["message", "task"]},
         {"name": "Agent Discovery", "commands": ["card"]},
+        {"name": "Authentication", "commands": ["auth"]},
         {"name": "Interfaces", "commands": ["tui", "server"]},
         {"name": "Utilities", "commands": ["session", "version"]},
     ],
@@ -135,6 +160,9 @@ click.rich_click.COMMAND_GROUPS = {
     ],
     "handler session": [
         {"name": "Session Commands", "commands": ["list", "show", "clear"]},
+    ],
+    "handler auth": [
+        {"name": "Auth Commands", "commands": ["set", "show", "clear"]},
     ],
 }
 
@@ -239,6 +267,8 @@ def message() -> None:
 )
 @click.option("--push-url", help="Webhook URL for push notifications")
 @click.option("--push-token", help="Authentication token for push notifications")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 @click.option(
     "--output",
     "-o",
@@ -257,6 +287,8 @@ def message_send(
     use_session: bool,
     push_url: Optional[str],
     push_token: Optional[str],
+    bearer_token: Optional[str],
+    api_key: Optional[str],
     output: str,
 ) -> None:
     """Send a message to an agent and receive a response."""
@@ -267,6 +299,14 @@ def message_send(
         if session.context_id:
             context_id = session.context_id
             log.info("Using saved context: %s", context_id)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     mode = get_mode(ctx, output)
 
@@ -280,6 +320,7 @@ def message_send(
                         enable_streaming=stream,
                         push_notification_url=push_url,
                         push_notification_token=push_token,
+                        credentials=credentials,
                     )
 
                     if mode != "json":
@@ -311,6 +352,8 @@ def message_send(
 )
 @click.option("--push-url", help="Webhook URL for push notifications")
 @click.option("--push-token", help="Authentication token for push notifications")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 @click.option(
     "--output",
     "-o",
@@ -328,6 +371,8 @@ def message_stream(
     use_session: bool,
     push_url: Optional[str],
     push_token: Optional[str],
+    bearer_token: Optional[str],
+    api_key: Optional[str],
     output: str,
 ) -> None:
     """Send a message and stream the response in real-time."""
@@ -341,6 +386,8 @@ def message_stream(
         use_session=use_session,
         push_url=push_url,
         push_token=push_token,
+        bearer_token=bearer_token,
+        api_key=api_key,
         output=output,
     )
 
@@ -391,6 +438,14 @@ async def _stream_message(
         if last_state:
             output.state("State", last_state.value)
 
+        if last_state and last_state.value == "auth-required":
+            output.blank()
+            output.warning("Authentication required")
+            output.line("The agent requires authentication to complete this task.")
+            output.line(
+                "Set credentials with: handler auth set <agent_url> --bearer <token>"
+            )
+
 
 def _format_send_result(result: SendResult, output: Output) -> None:
     """Format and display a send result."""
@@ -407,7 +462,16 @@ def _format_send_result(result: SendResult, output: Output) -> None:
         output.state("State", result.state.value)
 
     output.blank()
-    if result.text:
+    if result.needs_auth:
+        output.warning("Authentication required")
+        output.line("The agent requires authentication to complete this task.")
+        output.line(
+            "Set credentials with: handler auth set <agent_url> --bearer <token>"
+        )
+        output.line(
+            "Or provide inline: handler message send <agent_url> --bearer <token> ..."
+        )
+    elif result.text:
         output.markdown(result.text)
     else:
         output.dim("No text content in response")
@@ -703,9 +767,17 @@ def _format_agent_card(card_data: object, output: Output) -> None:
     name = card_dict.pop("name", "Unknown Agent")
     description = card_dict.pop("description", "")
 
+    security_schemes = card_dict.pop("securitySchemes", None)
+    security = card_dict.pop("security", None)
+
     output.header(name)
     if description:
         output.line(description)
+
+    if security_schemes:
+        output.blank()
+        output.subheader("Authentication")
+        _format_security_schemes(security_schemes, security, output)
 
     output.blank()
     for key, value in card_dict.items():
@@ -719,6 +791,40 @@ def _format_agent_card(card_data: object, output: Output) -> None:
                 output.line(formatted)
             else:
                 output.field(field_name, formatted)
+
+
+def _format_security_schemes(
+    schemes: dict[str, Any],
+    security: list[dict[str, list[str]]] | None,
+    output: Output,
+) -> None:
+    """Format security schemes from agent card."""
+    for scheme_name, scheme_def in schemes.items():
+        scheme_type = scheme_def.get("type", "unknown")
+
+        if scheme_type == "apiKey":
+            header_name = scheme_def.get("name", "X-API-Key")
+            location = scheme_def.get("in", "header")
+            output.field(scheme_name, f"API Key ({location}: {header_name})")
+        elif scheme_type == "http":
+            http_scheme = scheme_def.get("scheme", "bearer")
+            output.field(scheme_name, f"HTTP {http_scheme.title()}")
+        elif scheme_type == "oauth2":
+            output.field(scheme_name, "OAuth 2.0")
+        elif scheme_type == "openIdConnect":
+            oidc_url = scheme_def.get("openIdConnectUrl", "")
+            output.field(scheme_name, f"OpenID Connect ({oidc_url})")
+        elif scheme_type == "mutualTLS":
+            output.field(scheme_name, "Mutual TLS")
+        else:
+            output.field(scheme_name, scheme_type)
+
+    if security:
+        required_schemes = []
+        for sec_req in security:
+            required_schemes.extend(sec_req.keys())
+        if required_schemes:
+            output.field("Required", ", ".join(required_schemes))
 
 
 @card.command("validate")
@@ -882,6 +988,101 @@ def session_clear(
             output.success(f"Cleared session for {agent_url}")
         else:
             output.warning("Provide AGENT_URL or use --all to clear sessions")
+
+
+# ============================================================================
+# Auth Commands
+# ============================================================================
+
+
+@cli.group()
+def auth() -> None:
+    """Manage authentication credentials for agents."""
+    pass
+
+
+@auth.command("set")
+@click.argument("agent_url")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token for authentication")
+@click.option("--api-key", "-k", "api_key", help="API key for authentication")
+@click.option(
+    "--api-key-header",
+    default="X-API-Key",
+    help="Header name for API key (default: X-API-Key)",
+)
+@click.pass_context
+def auth_set(
+    ctx: click.Context,
+    agent_url: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
+    api_key_header: str,
+) -> None:
+    """Set authentication credentials for an agent.
+
+    Provide either --bearer or --api-key (not both).
+    """
+    mode = "raw" if ctx.obj.get("raw") else "text"
+
+    with get_output_context(mode) as output:
+        if bearer_token and api_key:
+            output.error("Provide either --bearer or --api-key, not both")
+            raise click.Abort()
+
+        if not bearer_token and not api_key:
+            output.error("Provide --bearer or --api-key")
+            raise click.Abort()
+
+        if bearer_token:
+            credentials = create_bearer_auth(bearer_token)
+            auth_type_display = "Bearer token"
+        else:
+            credentials = create_api_key_auth(api_key or "", header_name=api_key_header)
+            auth_type_display = f"API key (header: {api_key_header})"
+
+        set_credentials(agent_url, credentials)
+
+        output.success(f"Set {auth_type_display} for {agent_url}")
+
+
+@auth.command("show")
+@click.argument("agent_url")
+@click.pass_context
+def auth_show(ctx: click.Context, agent_url: str) -> None:
+    """Show authentication credentials for an agent."""
+    mode = "raw" if ctx.obj.get("raw") else "text"
+
+    with get_output_context(mode) as output:
+        credentials = get_credentials(agent_url)
+
+        output.header(f"Auth for {agent_url}")
+
+        if not credentials:
+            output.dim("No credentials configured")
+            return
+
+        output.field("Type", credentials.auth_type.value)
+        masked_value = (
+            f"{credentials.value[:4]}...{credentials.value[-4:]}"
+            if len(credentials.value) > 8
+            else "****"
+        )
+        output.field("Value", masked_value)
+
+        if credentials.auth_type == AuthType.API_KEY:
+            output.field("Header", credentials.header_name or "X-API-Key")
+
+
+@auth.command("clear")
+@click.argument("agent_url")
+@click.pass_context
+def auth_clear(ctx: click.Context, agent_url: str) -> None:
+    """Clear authentication credentials for an agent."""
+    mode = "raw" if ctx.obj.get("raw") else "text"
+
+    with get_output_context(mode) as output:
+        clear_credentials(agent_url)
+        output.success(f"Cleared credentials for {agent_url}")
 
 
 # ============================================================================

@@ -1,6 +1,7 @@
 """Session state management for the Handler CLI.
 
-Persists context_id and task_id across CLI invocations for conversation continuity.
+Persists context_id, task_id, and authentication credentials
+across CLI invocations for conversation continuity.
 """
 
 import json
@@ -8,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from a2a_handler.auth import AuthCredentials
 from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
@@ -23,17 +25,25 @@ class AgentSession:
     agent_url: str
     context_id: str | None = None
     task_id: str | None = None
+    credentials: AuthCredentials | None = None
 
     def update(
         self,
         context_id: str | None = None,
         task_id: str | None = None,
+        credentials: AuthCredentials | None = None,
     ) -> None:
         """Update session with new values (only if provided)."""
         if context_id is not None:
             self.context_id = context_id
         if task_id is not None:
             self.task_id = task_id
+        if credentials is not None:
+            self.credentials = credentials
+
+    def clear_credentials(self) -> None:
+        """Clear stored credentials."""
+        self.credentials = None
 
 
 @dataclass
@@ -63,10 +73,15 @@ class SessionStore:
                 session_data = json.load(session_file)
 
             for agent_url, agent_session_data in session_data.items():
+                credentials = None
+                if cred_data := agent_session_data.get("credentials"):
+                    credentials = AuthCredentials.from_dict(cred_data)
+
                 self.sessions[agent_url] = AgentSession(
                     agent_url=agent_url,
                     context_id=agent_session_data.get("context_id"),
                     task_id=agent_session_data.get("task_id"),
+                    credentials=credentials,
                 )
 
             logger.debug(
@@ -86,10 +101,13 @@ class SessionStore:
 
         session_data: dict[str, Any] = {}
         for agent_url, agent_session in self.sessions.items():
-            session_data[agent_url] = {
+            data: dict[str, Any] = {
                 "context_id": agent_session.context_id,
                 "task_id": agent_session.task_id,
             }
+            if agent_session.credentials:
+                data["credentials"] = agent_session.credentials.to_dict()
+            session_data[agent_url] = data
 
         try:
             with open(self.session_file_path, "w") as session_file:
@@ -114,18 +132,45 @@ class SessionStore:
         agent_url: str,
         context_id: str | None = None,
         task_id: str | None = None,
+        credentials: AuthCredentials | None = None,
     ) -> AgentSession:
         """Update session for an agent and save."""
         agent_session = self.get(agent_url)
-        agent_session.update(context_id, task_id)
+        agent_session.update(context_id, task_id, credentials)
         self.save()
         logger.debug(
-            "Updated session for %s: context_id=%s, task_id=%s",
+            "Updated session for %s: context_id=%s, task_id=%s, has_credentials=%s",
             agent_url,
             context_id,
             task_id,
+            credentials is not None,
         )
         return agent_session
+
+    def set_credentials(
+        self,
+        agent_url: str,
+        credentials: AuthCredentials,
+    ) -> AgentSession:
+        """Set credentials for an agent."""
+        agent_session = self.get(agent_url)
+        agent_session.credentials = credentials
+        self.save()
+        logger.info("Set credentials for %s", agent_url)
+        return agent_session
+
+    def clear_credentials(self, agent_url: str) -> None:
+        """Clear credentials for an agent."""
+        if agent_url in self.sessions:
+            self.sessions[agent_url].clear_credentials()
+            self.save()
+            logger.info("Cleared credentials for %s", agent_url)
+
+    def get_credentials(self, agent_url: str) -> AuthCredentials | None:
+        """Get credentials for an agent."""
+        if agent_url in self.sessions:
+            return self.sessions[agent_url].credentials
+        return None
 
     def clear(self, agent_url: str | None = None) -> None:
         """Clear session(s).
@@ -179,3 +224,18 @@ def update_session(
 def clear_session(agent_url: str | None = None) -> None:
     """Clear session(s)."""
     get_session_store().clear(agent_url)
+
+
+def set_credentials(agent_url: str, credentials: AuthCredentials) -> AgentSession:
+    """Set credentials for an agent."""
+    return get_session_store().set_credentials(agent_url, credentials)
+
+
+def clear_credentials(agent_url: str) -> None:
+    """Clear credentials for an agent."""
+    get_session_store().clear_credentials(agent_url)
+
+
+def get_credentials(agent_url: str) -> AuthCredentials | None:
+    """Get credentials for an agent."""
+    return get_session_store().get_credentials(agent_url)

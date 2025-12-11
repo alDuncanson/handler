@@ -26,6 +26,7 @@ from a2a.types import (
     TransportProtocol,
 )
 
+from a2a_handler.auth import AuthCredentials
 from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
@@ -59,6 +60,11 @@ class SendResult:
     def needs_input(self) -> bool:
         """Check if the task is waiting for user input."""
         return self.state == TaskState.input_required if self.state else False
+
+    @property
+    def needs_auth(self) -> bool:
+        """Check if the task requires authentication."""
+        return self.state == TaskState.auth_required if self.state else False
 
 
 @dataclass
@@ -133,6 +139,7 @@ class A2AService:
         enable_streaming: bool = True,
         push_notification_url: str | None = None,
         push_notification_token: str | None = None,
+        credentials: AuthCredentials | None = None,
     ) -> None:
         """Initialize the A2A service.
 
@@ -142,14 +149,23 @@ class A2AService:
             enable_streaming: Whether to prefer streaming when available
             push_notification_url: Optional webhook URL for push notifications
             push_notification_token: Optional token for push notification auth
+            credentials: Optional authentication credentials
         """
         self.http_client = http_client
         self.agent_url = agent_url
         self.enable_streaming = enable_streaming
         self.push_notification_url = push_notification_url
         self.push_notification_token = push_notification_token
+        self.credentials = credentials
         self._cached_client: Client | None = None
         self._cached_agent_card: AgentCard | None = None
+
+        if credentials:
+            auth_headers = credentials.to_headers()
+            self.http_client.headers.update(auth_headers)
+            logger.debug(
+                "Applied authentication headers: %s", list(auth_headers.keys())
+            )
 
     async def get_card(self) -> AgentCard:
         """Fetch and cache the agent card.
