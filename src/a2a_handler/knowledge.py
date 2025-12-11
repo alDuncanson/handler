@@ -11,7 +11,7 @@ from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
 
-ASSETS_DIR = Path(__file__).parent.parent.parent.parent / "assets" / "a2a-knowledge"
+ASSETS_DIR = Path(__file__).parent.parent.parent / "assets" / "a2a-knowledge"
 QDRANT_COLLECTION = "a2a_knowledge"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
