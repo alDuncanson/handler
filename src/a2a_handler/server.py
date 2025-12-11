@@ -5,10 +5,11 @@ with Qdrant-backed semantic search for A2A protocol expertise.
 """
 
 import asyncio
-from contextlib import AsyncExitStack
 import os
 import secrets
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
+from typing import Union
 
 import httpx
 import uvicorn
@@ -38,9 +39,10 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.tools import BaseTool
+from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
-from google.adk.tools import BaseTool
 from mcp import StdioServerParameters
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -184,7 +186,7 @@ async def create_llm_agent_async(
         reasoning_effort="none",
     )
 
-    tools: list[BaseTool] = []
+    tools: list[Union[Callable, BaseTool, BaseToolset]] = []
     if use_knowledge_base:
         mcp_tools = await get_mcp_tools_async(exit_stack)
         tools.extend(mcp_tools)
@@ -237,7 +239,7 @@ When you learn new information that should be remembered, use the `qdrant-store`
         model=language_model,
         description="Handler's A2A Protocol Expert Agent - answers questions about A2A and Handler",
         instruction=instruction,
-        tools=tools or None,
+        tools=tools,
     )
 
     logger.info(
