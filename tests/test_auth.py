@@ -1,7 +1,5 @@
 """Tests for authentication module."""
 
-import pytest
-
 from a2a_handler.auth import (
     AuthCredentials,
     AuthType,

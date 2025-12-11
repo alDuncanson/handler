@@ -905,10 +905,27 @@ def server() -> None:
 @server.command("agent")
 @click.option("--host", default="0.0.0.0", help="Host to bind to", show_default=True)
 @click.option("--port", default=8000, help="Port to bind to", show_default=True)
-def server_agent(host: str, port: int) -> None:
+@click.option("--auth/--no-auth", default=False, help="Require API key authentication")
+@click.option(
+    "--api-key",
+    default=None,
+    help="Specific API key to use (auto-generated if not set)",
+)
+@click.option(
+    "--no-knowledge", is_flag=True, help="Disable knowledge base initialization"
+)
+def server_agent(
+    host: str, port: int, auth: bool, api_key: Optional[str], no_knowledge: bool
+) -> None:
     """Start a local A2A agent server."""
     log.info("Starting A2A server on %s:%d", host, port)
-    run_server(host, port)
+    run_server(
+        host=host,
+        port=port,
+        require_auth=auth,
+        api_key=api_key,
+        init_knowledge=not no_knowledge,
+    )
 
 
 @server.command("push")
