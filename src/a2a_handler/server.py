@@ -74,7 +74,6 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     OPEN_PATHS = {
         "/.well-known/agent-card.json",
         "/health",
-        "/",
     }
 
     def __init__(self, app: Starlette, api_key: str) -> None:
@@ -501,7 +500,7 @@ def run_server(
             f"API Key: [bold green]{effective_api_key}[/bold green]\n"
             f"\nUse with Handler CLI:\n"
             f'  [dim]handler message send http://localhost:{port} "message" '
-            f"--auth-type api-key --auth-value {effective_api_key}[/dim]\n"
+            f"--api-key {effective_api_key}[/dim]\n"
         )
 
     asyncio.run(
