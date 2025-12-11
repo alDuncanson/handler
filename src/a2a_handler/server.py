@@ -5,6 +5,7 @@ with Qdrant-backed semantic search for A2A protocol expertise.
 """
 
 import asyncio
+from contextlib import AsyncExitStack
 import os
 import secrets
 from collections.abc import Awaitable, Callable
@@ -39,6 +40,7 @@ from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from google.adk.tools import BaseTool
 from mcp import StdioServerParameters
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -120,11 +122,18 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def create_mcp_toolset() -> McpToolset:
-    """Create an MCP toolset for the Qdrant knowledge base.
+async def get_mcp_tools_async(
+    exit_stack: AsyncExitStack,
+) -> list[BaseTool]:
+    """Get MCP tools from the Qdrant knowledge base server.
+
+    Uses the exit_stack pattern to properly manage the MCP connection lifecycle.
+
+    Args:
+        exit_stack: AsyncExitStack to manage MCP connection cleanup
 
     Returns:
-        Configured McpToolset instance
+        List of MCP tools from the Qdrant server
     """
     env = get_mcp_server_env()
 
@@ -133,18 +142,27 @@ def create_mcp_toolset() -> McpToolset:
         args=["mcp-server-qdrant"],
         env=env,
     )
-    return McpToolset(
+
+    toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=server_params,
             timeout=60,
         ),
     )
 
+    exit_stack.push_async_callback(toolset.close)
+    tools = await toolset.get_tools()
+    return tools
 
-def create_llm_agent(use_knowledge_base: bool = True) -> Agent:
+
+async def create_llm_agent_async(
+    exit_stack: AsyncExitStack,
+    use_knowledge_base: bool = True,
+) -> Agent:
     """Create and configure the A2A test agent using LiteLLM with Ollama.
 
     Args:
+        exit_stack: AsyncExitStack to manage MCP connection cleanup
         use_knowledge_base: Whether to include knowledge base tools
 
     Returns:
@@ -167,10 +185,14 @@ def create_llm_agent(use_knowledge_base: bool = True) -> Agent:
         reasoning_effort="none",
     )
 
-    tools: list[McpToolset] = []
+    tools: list[BaseTool] = []
     if use_knowledge_base:
-        tools.append(create_mcp_toolset())
-        logger.info("Knowledge base tools enabled via Qdrant MCP server")
+        mcp_tools = await get_mcp_tools_async(exit_stack)
+        tools.extend(mcp_tools)
+        logger.info(
+            "Knowledge base tools enabled via Qdrant MCP server (%d tools)",
+            len(mcp_tools),
+        )
 
     instruction = """You are Handler's Agent, the built-in assistant for the Handler application and an expert on the A2A (Agent-to-Agent) protocol.
 
@@ -394,6 +416,56 @@ def create_a2a_application(
     return application
 
 
+async def _run_server_async(
+    host: str,
+    port: int,
+    require_auth: bool,
+    effective_api_key: str | None,
+    init_knowledge: bool,
+) -> None:
+    """Internal async server runner with proper MCP cleanup.
+
+    Args:
+        host: Host address to bind to
+        port: Port number to bind to
+        require_auth: Whether to require API key authentication
+        effective_api_key: API key to use for authentication
+        init_knowledge: Whether to include knowledge base tools
+    """
+    async with AsyncExitStack() as exit_stack:
+        agent = await create_llm_agent_async(
+            exit_stack, use_knowledge_base=init_knowledge
+        )
+        agent_card = build_agent_card(agent, host, port, require_auth=require_auth)
+
+        streaming_enabled = (
+            agent_card.capabilities.streaming if agent_card.capabilities else False
+        )
+        push_notifications_enabled = (
+            agent_card.capabilities.push_notifications
+            if agent_card.capabilities
+            else False
+        )
+        auth_enabled = agent_card.security_schemes is not None
+
+        logger.info(
+            "Agent card capabilities: streaming=%s, push_notifications=%s, auth=%s",
+            streaming_enabled,
+            push_notifications_enabled,
+            auth_enabled,
+        )
+
+        a2a_application = create_a2a_application(agent, agent_card, effective_api_key)
+
+        config = uvicorn.Config(a2a_application, host=host, port=port)
+        server = uvicorn.Server(config)
+
+        try:
+            await server.serve()
+        finally:
+            logger.info("Server shutting down, cleaning up MCP connections...")
+
+
 def run_server(
     host: str,
     port: int,
@@ -432,23 +504,12 @@ def run_server(
             f"--auth-type api-key --auth-value {effective_api_key}[/dim]\n"
         )
 
-    agent = create_llm_agent(use_knowledge_base=init_knowledge)
-    agent_card = build_agent_card(agent, host, port, require_auth=require_auth)
-
-    streaming_enabled = (
-        agent_card.capabilities.streaming if agent_card.capabilities else False
+    asyncio.run(
+        _run_server_async(
+            host=host,
+            port=port,
+            require_auth=require_auth,
+            effective_api_key=effective_api_key,
+            init_knowledge=init_knowledge,
+        )
     )
-    push_notifications_enabled = (
-        agent_card.capabilities.push_notifications if agent_card.capabilities else False
-    )
-    auth_enabled = agent_card.security_schemes is not None
-
-    logger.info(
-        "Agent card capabilities: streaming=%s, push_notifications=%s, auth=%s",
-        streaming_enabled,
-        push_notifications_enabled,
-        auth_enabled,
-    )
-
-    a2a_application = create_a2a_application(agent, agent_card, effective_api_key)
-    uvicorn.run(a2a_application, host=host, port=port)
