@@ -6,10 +6,8 @@ Screen {
     border: round $primary;
     height: 1fr;
     layout: horizontal;
-    padding: 1 2;
+    padding: 0 1;
     background: $background;
-    border-title-color: $text-muted;
-    border-title-style: bold;
 }
 
 #left-pane {
@@ -55,9 +53,34 @@ Screen {
 }
 
 /* Contact Panel Internal */
-Label.section-label {
-    color: $text-muted;
+#contact-tabs {
+    height: auto;
+}
+
+#contact-tabs ContentSwitcher {
+    height: auto;
+}
+
+#contact-tabs TabPane {
+    height: auto;
+}
+
+#server-content {
+    height: auto;
+}
+
+#about-content {
+    height: auto;
+}
+
+#version-info {
+    height: auto;
     margin-bottom: 1;
+}
+
+#issues-link {
+    height: auto;
+    color: $accent;
 }
 
 #agent-url {

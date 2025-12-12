@@ -89,10 +89,8 @@ class HandlerTUI(App[Any]):
         messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.load_logs(tui_log_handler.get_lines())
 
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [red]●[/red] Disconnected"
-        )
+        contact_panel = self.query_one("#contact-container", ContactPanel)
+        contact_panel.set_version(__version__)
 
         messages_panel.add_system_message(
             "Welcome! Connect to an agent to start chatting."
@@ -122,26 +120,16 @@ class HandlerTUI(App[Any]):
         return await self._agent_service.get_card()
 
     def _update_ui_for_connected_state(self, agent_card: AgentCard) -> None:
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [green]●[/green] Connected: {agent_card.name}"
-        )
-
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.update_card(agent_card)
 
         contact_panel = self.query_one("#contact-container", ContactPanel)
-        contact_panel.set_connected(True)
+        contact_panel.set_connected(True, agent_card.name)
 
         messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.update_message_count()
 
     def _update_ui_for_disconnected_state(self) -> None:
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [red]●[/red] Disconnected"
-        )
-
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.update_card(None)
 
