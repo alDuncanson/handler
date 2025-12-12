@@ -17,6 +17,7 @@ from textual.containers import Container, Vertical
 from textual.logging import TextualHandler
 from textual.widgets import Button, Input
 
+from a2a_handler.common import get_theme, save_theme
 from a2a_handler.service import A2AService
 from a2a_handler.tui.components import (
     AgentCardPanel,
@@ -78,7 +79,7 @@ class HandlerTUI(App[Any]):
     async def on_mount(self) -> None:
         logger.info("TUI application starting")
         self.http_client = build_http_client()
-        self.theme = "gruvbox"
+        self.theme = get_theme()
 
         root_container = self.query_one("#root-container", Container)
         root_container.border_title = (
@@ -93,6 +94,7 @@ class HandlerTUI(App[Any]):
     def watch_theme(self, new_theme: str) -> None:
         """Called when the app theme changes."""
         logger.debug("Theme changed to: %s", new_theme)
+        save_theme(new_theme)
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.refresh_theme()
 
