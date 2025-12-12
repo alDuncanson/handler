@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 from a2a.types import AgentCard
-from textual import on
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
@@ -191,21 +191,22 @@ class HandlerTUI(App[Any]):
         self._update_ui_for_disconnected_state()
 
     @on(Input.Submitted, "#message-input")
-    async def handle_message_submit(self) -> None:
+    def handle_message_submit(self) -> None:
         if self.current_agent_url:
-            await self._send_message()
+            self._send_message()
         else:
             messages_panel = self.query_one("#messages-container", MessagesPanel)
             messages_panel.add_system_message("✗ Not connected to an agent")
 
     @on(Button.Pressed, "#send-btn")
-    async def handle_send_button(self) -> None:
+    def handle_send_button(self) -> None:
         if self.current_agent_url:
-            await self._send_message()
+            self._send_message()
         else:
             messages_panel = self.query_one("#messages-container", MessagesPanel)
             messages_panel.add_system_message("✗ Not connected to an agent")
 
+    @work(exclusive=True)
     async def _send_message(self) -> None:
         if not self.current_agent_url or not self._agent_service:
             logger.warning("Attempted to send message without connection")
