@@ -32,6 +32,7 @@ class LogsPanel(Log):
     def add_log(self, line: str) -> None:
         """Add a log line to the display."""
         self.write_line(line)
+        self.scroll_end(animate=False)
 
     def load_logs(self, lines: list[str]) -> None:
         """Load multiple log lines at once."""

@@ -5,17 +5,19 @@ Provides the Textual-based terminal interface for agent interaction.
 
 import logging
 import uuid
+from collections.abc import Iterable
 from importlib.metadata import version
 from typing import Any
 
 import httpx
 from a2a.types import AgentCard
 from textual import on, work
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.events import DescendantFocus
 from textual.logging import TextualHandler
+from textual.screen import Screen
 from textual.widgets import Button, Input
 
 from a2a_handler.common import get_theme, install_tui_log_handler, save_theme
@@ -288,13 +290,27 @@ class HandlerTUI(App[Any]):
 
         footer.show_maximize_button(can_maximize or self._is_maximized)
 
+    def _is_focused_on_maximizable_panel(self) -> bool:
+        """Check if focus is on a maximizable panel."""
+        focused = self.focused
+        if focused is None:
+            return False
+
+        for panel in (
+            self.query_one("#messages-container", TabbedMessagesPanel),
+            self.query_one("#agent-card-container", AgentCardPanel),
+        ):
+            if focused is panel or panel in focused.ancestors:
+                return True
+        return False
+
     def action_toggle_maximize(self) -> None:
         """Toggle maximize for the focused panel."""
         if self._is_maximized:
             self.screen.minimize()
             self._is_maximized = False
             footer = self.query_one("#footer", Footer)
-            footer.show_maximize_button(False)
+            footer.show_maximize_button(self._is_focused_on_maximizable_panel())
             return
 
         focused = self.focused
@@ -309,6 +325,13 @@ class HandlerTUI(App[Any]):
                 self.screen.maximize(panel)
                 self._is_maximized = True
                 return
+
+    def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
+        """Filter out maximize/minimize commands from the command palette."""
+        for command in super().get_system_commands(screen):
+            if command.title.lower() in ("maximize", "minimize"):
+                continue
+            yield command
 
     async def on_unmount(self) -> None:
         logger.info("Shutting down TUI application")
