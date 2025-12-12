@@ -49,6 +49,7 @@ Screen {
 
 #messages-container {
     height: 1fr;
+    padding: 0 1;
 }
 
 #input-container {

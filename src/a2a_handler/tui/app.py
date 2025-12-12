@@ -14,6 +14,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
+from textual.events import DescendantFocus
 from textual.logging import TextualHandler
 from textual.widgets import Button, Input
 
@@ -54,6 +55,7 @@ class HandlerTUI(App[Any]):
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("ctrl+c", "clear_chat", "Clear", show=True),
         Binding("ctrl+p", "command_palette", "Palette", show=True),
+        Binding("ctrl+m", "toggle_maximize", "Maximize", show=False),
     ]
 
     def __init__(self, **kwargs: Any) -> None:
@@ -63,6 +65,7 @@ class HandlerTUI(App[Any]):
         self.current_context_id: str | None = None
         self.current_agent_url: str | None = None
         self._agent_service: A2AService | None = None
+        self._is_maximized: bool = False
 
     def compose(self) -> ComposeResult:
         with Container(id="root-container"):
@@ -122,6 +125,10 @@ class HandlerTUI(App[Any]):
     @on(Button.Pressed, "#footer-palette")
     def handle_palette_button(self) -> None:
         self.action_command_palette()
+
+    @on(Button.Pressed, "#footer-maximize")
+    def handle_maximize_button(self) -> None:
+        self.action_toggle_maximize()
 
     async def _connect_to_agent(self, agent_url: str) -> AgentCard:
         if not self.http_client:
@@ -264,6 +271,44 @@ class HandlerTUI(App[Any]):
     async def action_clear_chat(self) -> None:
         messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         await messages_panel.clear()
+
+    def on_descendant_focus(self, event: DescendantFocus) -> None:
+        """Track focus to show/hide maximize button for eligible panels."""
+        footer = self.query_one("#footer", Footer)
+        focused = event.widget
+
+        can_maximize = False
+        for panel in (
+            self.query_one("#messages-container", TabbedMessagesPanel),
+            self.query_one("#agent-card-container", AgentCardPanel),
+        ):
+            if focused is panel or panel in focused.ancestors:
+                can_maximize = True
+                break
+
+        footer.show_maximize_button(can_maximize or self._is_maximized)
+
+    def action_toggle_maximize(self) -> None:
+        """Toggle maximize for the focused panel."""
+        if self._is_maximized:
+            self.screen.minimize()
+            self._is_maximized = False
+            footer = self.query_one("#footer", Footer)
+            footer.show_maximize_button(False)
+            return
+
+        focused = self.focused
+        if focused is None:
+            return
+
+        for panel in (
+            self.query_one("#messages-container", TabbedMessagesPanel),
+            self.query_one("#agent-card-container", AgentCardPanel),
+        ):
+            if focused is panel or panel in focused.ancestors:
+                self.screen.maximize(panel)
+                self._is_maximized = True
+                return
 
     async def on_unmount(self) -> None:
         logger.info("Shutting down TUI application")

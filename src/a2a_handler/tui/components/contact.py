@@ -12,6 +12,8 @@ logger = get_logger(__name__)
 class ContactPanel(Container):
     """Contact panel for connecting to an agent endpoint."""
 
+    ALLOW_MAXIMIZE = False
+
     def compose(self) -> ComposeResult:
         yield Label("ENDPOINT", classes="section-label")
         yield Input(

@@ -12,6 +12,8 @@ logger = get_logger(__name__)
 class InputPanel(Container):
     """Panel for message input."""
 
+    ALLOW_MAXIMIZE = False
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="input-row"):
             yield Input(placeholder="Type your message...", id="message-input")

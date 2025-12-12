@@ -183,7 +183,6 @@ class TabbedMessagesPanel(Container):
                 yield LogsPanel(id="logs-panel")
 
     def on_mount(self) -> None:
-        self.border_title = "MESSAGES"
         for widget in self.query("TabbedContent, Tabs, Tab, TabPane"):
             widget.can_focus = False
         logger.debug("Tabbed messages panel mounted")
