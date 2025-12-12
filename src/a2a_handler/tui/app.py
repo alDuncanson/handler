@@ -230,8 +230,18 @@ class HandlerTUI(App[Any]):
                 context_id=self.current_context_id,
             )
 
-            response_text = send_result.text or "No text in response"
-            messages_panel.add_message("agent", response_text)
+            logger.info(
+                "Response received - task_id=%s, state=%s, has_text=%s, has_task=%s, has_message=%s",
+                send_result.task_id,
+                send_result.state,
+                bool(send_result.text),
+                send_result.task is not None,
+                send_result.message is not None,
+            )
+            if send_result.raw:
+                logger.debug("Raw response: %s", send_result.raw)
+
+            messages_panel.add_agent_message(send_result)
 
         except Exception as error:
             logger.error("Error sending message: %s", error, exc_info=True)
