@@ -52,35 +52,6 @@ DEFAULT_OLLAMA_API_BASE = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "llama3.2:1b"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30
 
-GEMINI_MODEL_PREFIXES = ("gemini-", "models/gemini-")
-
-
-def is_gemini_model(model: str) -> bool:
-    """Check if the model string refers to a Gemini model."""
-    return model.startswith(GEMINI_MODEL_PREFIXES)
-
-
-def check_gemini_auth() -> bool:
-    """Check if Gemini authentication is available.
-
-    Returns:
-        True if either GOOGLE_API_KEY is set or ADC is configured
-    """
-    if os.getenv("GOOGLE_API_KEY"):
-        return True
-    if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") and os.getenv("GOOGLE_CLOUD_PROJECT"):
-        return True
-    try:
-        result = subprocess.run(
-            ["gcloud", "auth", "application-default", "print-access-token"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
-
 
 def get_ollama_models() -> list[str]:
     """Get list of locally available Ollama models.
@@ -216,27 +187,18 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def create_language_model(model: str | None = None) -> LiteLlm | str:
-    """Create the appropriate language model based on model string.
-
-    Supports:
-    - Gemini models (gemini-*): Uses direct string for ADK registry
-    - Ollama models: Uses LiteLlm with ollama_chat provider
+def create_language_model(model: str | None = None) -> LiteLlm:
+    """Create an Ollama language model via LiteLLM.
 
     Args:
         model: Model identifier. If None, uses OLLAMA_MODEL env var or default.
 
     Returns:
-        LiteLlm instance for Ollama, or model string for Gemini
+        LiteLlm instance configured for Ollama
     """
     load_dotenv()
 
     effective_model = model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
-
-    if is_gemini_model(effective_model):
-        logger.info("Creating agent with Gemini model: %s", effective_model)
-        return effective_model
-
     ollama_api_base = os.getenv("OLLAMA_API_BASE", DEFAULT_OLLAMA_API_BASE)
     logger.info(
         "Creating agent with Ollama model: %s at %s",
@@ -252,12 +214,10 @@ def create_language_model(model: str | None = None) -> LiteLlm | str:
 
 
 def create_llm_agent(model: str | None = None) -> Agent:
-    """Create and configure the A2A agent.
-
-    Supports both Ollama models (via LiteLLM) and Gemini models (direct).
+    """Create and configure the A2A agent using Ollama via LiteLLM.
 
     Args:
-        model: Model identifier (e.g., 'llama3.2:1b', 'gemini-2.0-flash')
+        model: Ollama model identifier (e.g., 'llama3.2:1b')
 
     Returns:
         Configured ADK Agent instance
@@ -460,23 +420,13 @@ def run_server(
         port: Port number to bind to
         require_auth: Whether to require API key authentication
         api_key: Specific API key to use (generated if not provided and auth required)
-        model: Model identifier (e.g., 'llama3.2:1b', 'gemini-2.0-flash')
+        model: Ollama model identifier (e.g., 'llama3.2:1b')
     """
     effective_model = model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
 
-    if is_gemini_model(effective_model):
-        if not check_gemini_auth():
-            console.print(
-                "[red]Gemini model selected but no authentication found.[/red]\n"
-                "Please set GOOGLE_API_KEY or configure ADC:\n"
-                "  [dim]gcloud auth application-default login[/dim]\n"
-            )
+    if not check_ollama_model(effective_model):
+        if not prompt_ollama_pull(effective_model):
             return
-        console.print(f"[green]Using Gemini model:[/green] {effective_model}\n")
-    else:
-        if not check_ollama_model(effective_model):
-            if not prompt_ollama_pull(effective_model):
-                return
 
     console.print(
         f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
