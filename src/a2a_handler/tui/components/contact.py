@@ -23,8 +23,20 @@ class ContactPanel(Container):
             yield Button("CONNECT", id="connect-btn")
             yield Button("DISCONNECT", id="disconnect-btn", disabled=True)
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle enter key in the URL input to connect/disconnect."""
+        connect_btn = self.query_one("#connect-btn", Button)
+        disconnect_btn = self.query_one("#disconnect-btn", Button)
+
+        if not connect_btn.disabled:
+            self.post_message(Button.Pressed(connect_btn))
+        elif not disconnect_btn.disabled:
+            self.post_message(Button.Pressed(disconnect_btn))
+
     def on_mount(self) -> None:
         self.border_title = "CONTACT"
+        self.query_one("#connect-btn", Button).can_focus = False
+        self.query_one("#disconnect-btn", Button).can_focus = False
         logger.debug("Contact panel mounted")
 
     def set_connected(self, is_connected: bool) -> None:
