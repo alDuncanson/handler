@@ -50,12 +50,12 @@ class TestFormatValue:
         assert format_value({}) == ""
 
     def test_bool_true(self):
-        """Test True returns checkmark."""
-        assert format_value(True) == "✓"
+        """Test True returns 'yes'."""
+        assert format_value(True) == "yes"
 
     def test_bool_false(self):
-        """Test False returns X."""
-        assert format_value(False) == "✗"
+        """Test False returns 'no'."""
+        assert format_value(False) == "no"
 
     def test_string(self):
         """Test string returns itself."""

@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from a2a_handler.common import console, get_logger
+from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
 
@@ -84,23 +84,23 @@ async def handle_push_notification(request: Request) -> JSONResponse:
 
     logger.info("Received push notification for task: %s", task_id)
 
-    console.print("\n[bold cyan]Push Notification Received[/bold cyan]")
-    console.print(f"[dim]Timestamp:[/dim] {notification.timestamp.isoformat()}")
+    print("\nPush Notification Received")
+    print(f"Timestamp: {notification.timestamp.isoformat()}")
     if task_id:
-        console.print(f"[dim]Task ID:[/dim] {task_id}")
+        print(f"Task ID: {task_id}")
 
     task_status = request_payload.get("status", {})
     if task_status:
         task_state = task_status.get("state", "unknown")
-        console.print(f"[dim]State:[/dim] {task_state}")
+        print(f"State: {task_state}")
 
     authentication_token = request_headers.get("x-a2a-notification-token")
     if authentication_token:
-        console.print(f"[dim]Token:[/dim] {authentication_token[:20]}...")
+        print(f"Token: {authentication_token[:20]}...")
 
-    console.print()
-    console.print_json(json.dumps(request_payload, indent=2, default=str))
-    console.print()
+    print()
+    print(json.dumps(request_payload, indent=2, default=str))
+    print()
 
     return JSONResponse({"status": "ok", "received": True})
 
@@ -157,19 +157,16 @@ def run_webhook_server(
         host: Host address to bind to
         port: Port number to bind to
     """
-    console.print(f"\n[bold]Starting webhook server on [url]{host}:{port}[/url][/bold]")
-    console.print()
-    console.print("[dim]Endpoints:[/dim]")
-    console.print(f"  POST http://{host}:{port}/webhook - Receive notifications")
-    console.print(f"  GET  http://{host}:{port}/webhook - Validation check")
-    console.print(f"  GET  http://{host}:{port}/notifications - List received")
-    console.print(f"  POST http://{host}:{port}/notifications/clear - Clear stored")
-    console.print()
-    console.print(
-        f"[bold green]Use this URL for push notifications:[/bold green] "
-        f"http://{host}:{port}/webhook"
-    )
-    console.print()
+    print(f"\nStarting webhook server on {host}:{port}")
+    print()
+    print("Endpoints:")
+    print(f"  POST http://{host}:{port}/webhook - Receive notifications")
+    print(f"  GET  http://{host}:{port}/webhook - Validation check")
+    print(f"  GET  http://{host}:{port}/notifications - List received")
+    print(f"  POST http://{host}:{port}/notifications/clear - Clear stored")
+    print()
+    print(f"Use this URL for push notifications: http://{host}:{port}/webhook")
+    print()
 
     logger.info("Starting webhook server on %s:%d", host, port)
     webhook_application = create_webhook_application()

@@ -159,6 +159,20 @@ Button:hover {
     color: $background;
 }
 
+/* Messages Tabs */
+#messages-tabs {
+    height: 1fr;
+}
+
+#messages-tabs ContentSwitcher {
+    height: 1fr;
+}
+
+#messages-tabs TabPane {
+    height: 1fr;
+    overflow-y: auto;
+}
+
 /* Chat Panel */
 #chat {
     height: 1fr;
@@ -168,6 +182,18 @@ Button:hover {
 Message {
     margin-bottom: 1;
     height: auto;
+}
+
+/* Logs Panel - uses Textual's Log widget */
+#logs-panel {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    scrollbar-size: 1 1;
+    scrollbar-gutter: stable;
+    background: $background;
+    overflow-x: auto;
+    overflow-y: auto;
 }
 
 /* Custom Footer */
@@ -211,6 +237,6 @@ AgentCardPanel:focus {
     border: round $accent;
 }
 
-MessagesPanel:focus {
+TabbedMessagesPanel:focus {
     border: round $accent;
 }

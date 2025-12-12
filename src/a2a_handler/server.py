@@ -43,9 +43,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from a2a_handler.common import console, get_logger, setup_logging
+from a2a_handler.common import get_logger, setup_logging
 
-setup_logging(level="INFO", suppress_libs=["uvicorn", "google", "httpcore", "httpx"])
+setup_logging(level="INFO")
 logger = get_logger(__name__)
 
 DEFAULT_OLLAMA_API_BASE = "http://localhost:11434"
@@ -99,29 +99,29 @@ def prompt_ollama_pull(model: str) -> bool:
     Returns:
         True if pull succeeded or user declined, False on error
     """
-    console.print(f"\n[yellow]Model '[bold]{model}[/bold]' not found locally.[/yellow]")
-    response = console.input("Would you like to pull it now? [y/N]: ").strip().lower()
+    print(f"\nModel '{model}' not found locally.")
+    response = input("Would you like to pull it now? [y/N]: ").strip().lower()
 
     if response not in ("y", "yes"):
-        console.print("[dim]Skipping model pull. Server may fail to start.[/dim]")
+        print("Skipping model pull. Server may fail to start.")
         return True
 
-    console.print(f"\n[cyan]Pulling model {model}...[/cyan]\n")
+    print(f"\nPulling model {model}...\n")
     try:
         result = subprocess.run(
             ["ollama", "pull", model],
             timeout=600,
         )
         if result.returncode == 0:
-            console.print(f"\n[green]Successfully pulled {model}[/green]\n")
+            print(f"\nSuccessfully pulled {model}\n")
             return True
-        console.print(f"\n[red]Failed to pull {model}[/red]\n")
+        print(f"\nFailed to pull {model}\n")
         return False
     except subprocess.TimeoutExpired:
-        console.print(f"\n[red]Timeout pulling {model}[/red]\n")
+        print(f"\nTimeout pulling {model}\n")
         return False
     except FileNotFoundError:
-        console.print("\n[red]Ollama CLI not found. Please install Ollama.[/red]\n")
+        print("\nOllama CLI not found. Please install Ollama.\n")
         return False
 
 
@@ -428,9 +428,7 @@ def run_server(
         if not prompt_ollama_pull(effective_model):
             return
 
-    console.print(
-        f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
-    )
+    print(f"\nStarting Handler server on {host}:{port}\n")
     logger.info("Initializing A2A server with push notification support...")
 
     effective_api_key = None
@@ -438,12 +436,12 @@ def run_server(
         effective_api_key = (
             api_key or os.getenv("HANDLER_API_KEY") or generate_api_key()
         )
-        console.print(
-            f"[bold yellow]Authentication required![/bold yellow]\n"
-            f"API Key: [bold green]{effective_api_key}[/bold green]\n"
+        print(
+            f"Authentication required!\n"
+            f"API Key: {effective_api_key}\n"
             f"\nUse with Handler CLI:\n"
-            f'  [dim]handler message send http://localhost:{port} "message" '
-            f"--api-key {effective_api_key}[/dim]\n"
+            f'  handler message send http://localhost:{port} "message" '
+            f"--api-key {effective_api_key}\n"
         )
 
     agent = create_llm_agent(model=effective_model)

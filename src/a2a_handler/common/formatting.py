@@ -48,7 +48,7 @@ def format_value(value: Any, indent: int = 0) -> str:
         return ""
 
     if isinstance(value, bool):
-        return "✓" if value else "✗"
+        return "yes" if value else "no"
 
     if isinstance(value, str):
         return value
@@ -65,20 +65,20 @@ def format_value(value: Any, indent: int = 0) -> str:
                 desc = item_dict.get("description") or ""
                 if desc:
                     desc_prefix = "  " * (indent + 1)
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{prefix}  • {name}")
                     lines.append(f"{desc_prefix}  {desc}")
                 else:
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{prefix}  • {name}")
             elif isinstance(item, dict):
                 item_d: dict[str, Any] = item
                 name = item_d.get("name") or item_d.get("id") or "Item"
                 desc = item_d.get("description") or ""
                 if desc:
                     desc_prefix = "  " * (indent + 1)
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{prefix}  • {name}")
                     lines.append(f"{desc_prefix}  {desc}")
                 else:
-                    lines.append(f"{prefix}  • [cyan]{name}[/cyan]")
+                    lines.append(f"{prefix}  • {name}")
             else:
                 formatted = format_value(item, indent)
                 if formatted:
@@ -97,11 +97,9 @@ def format_value(value: Any, indent: int = 0) -> str:
             if formatted:
                 field_name = format_field_name(str(k))
                 if "\n" in formatted:
-                    dict_lines.append(
-                        f"{prefix}[bold]{field_name}:[/bold]\n{formatted}"
-                    )
+                    dict_lines.append(f"{prefix}{field_name}:\n{formatted}")
                 else:
-                    dict_lines.append(f"{prefix}[bold]{field_name}:[/bold] {formatted}")
+                    dict_lines.append(f"{prefix}{field_name}: {formatted}")
         return "\n".join(dict_lines) if dict_lines else ""
 
     return str(value) if value else ""

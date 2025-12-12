@@ -12,10 +12,12 @@ from .formatting import (
     format_value,
 )
 from .logging import (
-    HANDLER_THEME,
     LogLevel,
-    console,
+    LogRecord,
+    TUILogHandler,
     get_logger,
+    get_tui_log_handler,
+    install_tui_log_handler,
     setup_logging,
 )
 from .output import (
@@ -25,16 +27,18 @@ from .output import (
 )
 
 __all__ = [
-    "HANDLER_THEME",
     "LogLevel",
+    "LogRecord",
     "Output",
     "OutputMode",
-    "console",
+    "TUILogHandler",
     "format_field_name",
     "format_value",
     "get_logger",
     "get_output_context",
     "get_theme",
+    "get_tui_log_handler",
+    "install_tui_log_handler",
     "save_theme",
     "setup_logging",
 ]

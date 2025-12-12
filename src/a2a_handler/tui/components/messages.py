@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Any
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical, VerticalScroll
-from textual.widgets import Static
+from textual.widgets import Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
+from a2a_handler.tui.components.logs import LogsPanel
 
 if TYPE_CHECKING:
     from a2a_handler.service import SendResult
@@ -37,10 +38,11 @@ class Message(Vertical):
         formatted_time = self.timestamp.strftime("%H:%M:%S")
 
         if self.role == "system":
-            yield Static(f"[dim]{formatted_time}[/dim] [italic]{self.text}[/italic]")
+            yield Static(f"{formatted_time} [system] {self.text}")
+        elif self.role == "agent":
+            yield Static(f"{formatted_time} [agent] {self.text}")
         else:
-            role_color = "#88c0d0" if self.role == "agent" else "#bf616a"
-            yield Static(f"[dim]{formatted_time}[/dim] [{role_color}]{self.text}[/]")
+            yield Static(f"{formatted_time} [user] {self.text}")
 
 
 class AgentMessage(Vertical):
@@ -79,13 +81,9 @@ class AgentMessage(Vertical):
             metadata_parts.append(f"artifacts:{artifact_count}")
 
         metadata_str = " ".join(metadata_parts) if metadata_parts else "no-metadata"
+        content = result.text or "(no text in response)"
 
-        content = result.text or "[dim italic]No text in response[/dim italic]"
-
-        yield Static(
-            f"[dim]{formatted_time}[/dim] [dim]({metadata_str})[/dim]\n"
-            f"[#88c0d0]{content}[/]"
-        )
+        yield Static(f"{formatted_time} ({metadata_str})\n[agent] {content}")
 
 
 class ChatScrollContainer(VerticalScroll):
@@ -155,3 +153,136 @@ class MessagesPanel(Container):
 
     def action_scroll_up(self) -> None:
         self._get_chat_container().scroll_up()
+
+
+class TabbedMessagesPanel(Container):
+    """Panel with tabs for Messages and Logs."""
+
+    BINDINGS = [
+        Binding("h", "previous_tab", "Previous Tab", show=False),
+        Binding("l", "next_tab", "Next Tab", show=False),
+        Binding("left", "previous_tab", "Previous Tab", show=False),
+        Binding("right", "next_tab", "Next Tab", show=False),
+        Binding("j", "scroll_down", "Scroll Down", show=False),
+        Binding("k", "scroll_up", "Scroll Up", show=False),
+        Binding("down", "scroll_down", "Scroll Down", show=False),
+        Binding("up", "scroll_up", "Scroll Up", show=False),
+        Binding("ctrl+h", "scroll_left", "Scroll Left", show=False),
+        Binding("ctrl+l", "scroll_right", "Scroll Right", show=False),
+        Binding("ctrl+left", "scroll_left", "Scroll Left", show=False),
+        Binding("ctrl+right", "scroll_right", "Scroll Right", show=False),
+    ]
+
+    can_focus = True
+
+    def compose(self) -> ComposeResult:
+        with TabbedContent(id="messages-tabs"):
+            with TabPane("Messages", id="messages-tab"):
+                yield ChatScrollContainer(id="chat")
+            with TabPane("Logs", id="logs-tab"):
+                yield LogsPanel(id="logs-panel")
+
+    def on_mount(self) -> None:
+        self.border_title = "MESSAGES"
+        for widget in self.query("TabbedContent, Tabs, Tab, TabPane"):
+            widget.can_focus = False
+        logger.debug("Tabbed messages panel mounted")
+
+    def _get_chat_container(self) -> ChatScrollContainer:
+        return self.query_one("#chat", ChatScrollContainer)
+
+    def _get_logs_panel(self) -> LogsPanel:
+        return self.query_one("#logs-panel", LogsPanel)
+
+    def add_message(self, role: str, content: str) -> None:
+        logger.debug("Adding %s message: %s", role, content[:50])
+        chat_container = self._get_chat_container()
+        message_widget = Message(role, content)
+        chat_container.mount(message_widget)
+        chat_container.scroll_end(animate=False)
+
+    def add_agent_message(self, send_result: SendResult) -> None:
+        logger.debug(
+            "Adding agent message - task_id=%s, state=%s, text_len=%d",
+            send_result.task_id,
+            send_result.state,
+            len(send_result.text) if send_result.text else 0,
+        )
+        chat_container = self._get_chat_container()
+        message_widget = AgentMessage(send_result)
+        chat_container.mount(message_widget)
+        chat_container.scroll_end(animate=False)
+
+    def add_system_message(self, content: str) -> None:
+        logger.info("System message: %s", content)
+        self.add_message("system", content)
+
+    def add_log(self, line: str) -> None:
+        """Add a log line to the logs panel."""
+        logs_panel = self._get_logs_panel()
+        logs_panel.add_log(line)
+
+    def load_logs(self, lines: list[str]) -> None:
+        """Load multiple log lines at once."""
+        logs_panel = self._get_logs_panel()
+        logs_panel.load_logs(lines)
+
+    def update_message_count(self) -> None:
+        chat_container = self._get_chat_container()
+        message_count = len(chat_container.children)
+        self.border_subtitle = f"{message_count} MESSAGES"
+
+    async def clear(self) -> None:
+        logger.info("Clearing chat messages")
+        chat_container = self._get_chat_container()
+        await chat_container.remove_children()
+        self.add_system_message("Chat cleared")
+
+    async def clear_logs(self) -> None:
+        """Clear the logs panel."""
+        logs_panel = self._get_logs_panel()
+        logs_panel.clear()
+
+    def _get_active_tab_id(self) -> str:
+        tabbed_content = self.query_one("#messages-tabs", TabbedContent)
+        return tabbed_content.active
+
+    def action_previous_tab(self) -> None:
+        """Switch to the previous tab."""
+        try:
+            tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
+            tabs_widget.action_previous_tab()
+        except Exception:
+            pass
+
+    def action_next_tab(self) -> None:
+        """Switch to the next tab."""
+        try:
+            tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
+            tabs_widget.action_next_tab()
+        except Exception:
+            pass
+
+    def action_scroll_down(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "messages-tab":
+            self._get_chat_container().scroll_down()
+        elif active == "logs-tab":
+            self._get_logs_panel().scroll_down()
+
+    def action_scroll_up(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "messages-tab":
+            self._get_chat_container().scroll_up()
+        elif active == "logs-tab":
+            self._get_logs_panel().scroll_up()
+
+    def action_scroll_left(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "logs-tab":
+            self._get_logs_panel().scroll_left()
+
+    def action_scroll_right(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "logs-tab":
+            self._get_logs_panel().scroll_right()
