@@ -1,5 +1,5 @@
 Screen {
-    padding: 2 4;
+    padding: 1 2;
 }
 
 #root-container {
@@ -197,41 +197,7 @@ Message {
     overflow-y: auto;
 }
 
-/* Custom Footer */
-Footer {
-    height: auto;
-    margin-top: 1;
-    border: round $primary;
-    background: $background;
-    border-title-color: $text-muted;
-    border-title-style: bold;
-    padding: 0 1;
-}
 
-Footer .footer-buttons {
-    height: auto;
-    align: left middle;
-}
-
-Footer Button {
-    height: 1;
-    border: none;
-    margin-right: 1;
-    background: transparent;
-    color: $text-muted;
-    min-width: 0;
-    padding: 0 1;
-}
-
-Footer Button:hover {
-    color: $text;
-    background: $primary;
-}
-
-Footer Button:focus {
-    color: $text;
-    background: $primary;
-}
 
 /* Focusable panel containers */
 AgentCardPanel:focus {

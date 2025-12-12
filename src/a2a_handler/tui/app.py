@@ -15,7 +15,7 @@ from textual import on, work
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-from textual.events import DescendantFocus
+
 from textual.logging import TextualHandler
 from textual.screen import Screen
 from textual.widgets import Button, Input
@@ -25,7 +25,6 @@ from a2a_handler.service import A2AService
 from a2a_handler.tui.components import (
     AgentCardPanel,
     ContactPanel,
-    Footer,
     InputPanel,
     TabbedMessagesPanel,
 )
@@ -79,8 +78,6 @@ class HandlerTUI(App[Any]):
                 yield TabbedMessagesPanel(id="messages-container", classes="panel")
                 yield InputPanel(id="input-container", classes="panel")
 
-        yield Footer(id="footer")
-
     async def on_mount(self) -> None:
         logger.info("TUI application starting")
         self.http_client = build_http_client()
@@ -115,22 +112,6 @@ class HandlerTUI(App[Any]):
         save_theme(new_theme)
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.refresh_theme()
-
-    @on(Button.Pressed, "#footer-quit")
-    async def handle_quit_button(self) -> None:
-        await self.action_quit()
-
-    @on(Button.Pressed, "#footer-clear")
-    async def handle_clear_button(self) -> None:
-        await self.action_clear_chat()
-
-    @on(Button.Pressed, "#footer-palette")
-    def handle_palette_button(self) -> None:
-        self.action_command_palette()
-
-    @on(Button.Pressed, "#footer-maximize")
-    def handle_maximize_button(self) -> None:
-        self.action_toggle_maximize()
 
     async def _connect_to_agent(self, agent_url: str) -> AgentCard:
         if not self.http_client:
@@ -274,43 +255,11 @@ class HandlerTUI(App[Any]):
         messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         await messages_panel.clear()
 
-    def on_descendant_focus(self, event: DescendantFocus) -> None:
-        """Track focus to show/hide maximize button for eligible panels."""
-        footer = self.query_one("#footer", Footer)
-        focused = event.widget
-
-        can_maximize = False
-        for panel in (
-            self.query_one("#messages-container", TabbedMessagesPanel),
-            self.query_one("#agent-card-container", AgentCardPanel),
-        ):
-            if focused is panel or panel in focused.ancestors:
-                can_maximize = True
-                break
-
-        footer.show_maximize_button(can_maximize or self._is_maximized)
-
-    def _is_focused_on_maximizable_panel(self) -> bool:
-        """Check if focus is on a maximizable panel."""
-        focused = self.focused
-        if focused is None:
-            return False
-
-        for panel in (
-            self.query_one("#messages-container", TabbedMessagesPanel),
-            self.query_one("#agent-card-container", AgentCardPanel),
-        ):
-            if focused is panel or panel in focused.ancestors:
-                return True
-        return False
-
     def action_toggle_maximize(self) -> None:
         """Toggle maximize for the focused panel."""
         if self._is_maximized:
             self.screen.minimize()
             self._is_maximized = False
-            footer = self.query_one("#footer", Footer)
-            footer.show_maximize_button(self._is_focused_on_maximizable_panel())
             return
 
         focused = self.focused
