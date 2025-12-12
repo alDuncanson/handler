@@ -912,10 +912,17 @@ def server() -> None:
     help="Specific API key to use (auto-generated if not set)",
 )
 @click.option(
-    "--no-knowledge", is_flag=True, help="Disable knowledge base initialization"
+    "--model",
+    "-m",
+    default=None,
+    help="Model to use (e.g., 'llama3.2:1b', 'qwen3', 'gemini-2.0-flash')",
 )
 def server_agent(
-    host: str, port: int, auth: bool, api_key: Optional[str], no_knowledge: bool
+    host: str,
+    port: int,
+    auth: bool,
+    api_key: Optional[str],
+    model: Optional[str],
 ) -> None:
     """Start a local A2A agent server."""
     log.info("Starting A2A server on %s:%d", host, port)
@@ -924,7 +931,7 @@ def server_agent(
         port=port,
         require_auth=auth,
         api_key=api_key,
-        init_knowledge=not no_knowledge,
+        model=model,
     )
 
 

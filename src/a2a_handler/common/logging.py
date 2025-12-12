@@ -55,7 +55,7 @@ def setup_logging(
         rich_tracebacks=rich_tracebacks,
         tracebacks_show_locals=False,
         tracebacks_suppress=[*suppress],
-        markup=True,
+        markup=False,
         log_time_format="[%X]",
     )
 

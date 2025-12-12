@@ -1,15 +1,13 @@
-"""A2A server agent with streaming, push notifications, and knowledge base.
+"""A2A server agent with streaming and push notifications.
 
-Provides a local A2A-compatible agent server for testing and development,
-with Qdrant-backed semantic search for A2A protocol expertise.
+Provides a local A2A-compatible agent server for testing and development.
 """
 
 import asyncio
 import os
 import secrets
+import subprocess
 from collections.abc import Awaitable, Callable
-from contextlib import AsyncExitStack
-from typing import Union
 
 import httpx
 import uvicorn
@@ -39,11 +37,6 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
-from google.adk.tools import BaseTool
-from google.adk.tools.base_toolset import BaseToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
-from mcp import StdioServerParameters
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -51,14 +44,114 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from a2a_handler.common import console, get_logger, setup_logging
-from a2a_handler.knowledge import get_mcp_server_env, initialize_knowledge_base
 
 setup_logging(level="INFO", suppress_libs=["uvicorn", "google", "httpcore", "httpx"])
 logger = get_logger(__name__)
 
 DEFAULT_OLLAMA_API_BASE = "http://localhost:11434"
-DEFAULT_OLLAMA_MODEL = "qwen3"
+DEFAULT_OLLAMA_MODEL = "llama3.2:1b"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30
+
+GEMINI_MODEL_PREFIXES = ("gemini-", "models/gemini-")
+
+
+def is_gemini_model(model: str) -> bool:
+    """Check if the model string refers to a Gemini model."""
+    return model.startswith(GEMINI_MODEL_PREFIXES)
+
+
+def check_gemini_auth() -> bool:
+    """Check if Gemini authentication is available.
+
+    Returns:
+        True if either GOOGLE_API_KEY is set or ADC is configured
+    """
+    if os.getenv("GOOGLE_API_KEY"):
+        return True
+    if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") and os.getenv("GOOGLE_CLOUD_PROJECT"):
+        return True
+    try:
+        result = subprocess.run(
+            ["gcloud", "auth", "application-default", "print-access-token"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def get_ollama_models() -> list[str]:
+    """Get list of locally available Ollama models.
+
+    Returns:
+        List of model names available in Ollama
+    """
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+        lines = result.stdout.strip().split("\n")
+        if len(lines) <= 1:
+            return []
+        return [line.split()[0] for line in lines[1:] if line.strip()]
+    except (subprocess.TimeoutExpired, FileNotFoundError, IndexError):
+        return []
+
+
+def check_ollama_model(model: str) -> bool:
+    """Check if a specific Ollama model is available locally.
+
+    Args:
+        model: The model name to check
+
+    Returns:
+        True if the model is available
+    """
+    available_models = get_ollama_models()
+    model_base = model.split(":")[0]
+    return any(m == model or m.startswith(f"{model_base}:") for m in available_models)
+
+
+def prompt_ollama_pull(model: str) -> bool:
+    """Prompt user to pull an Ollama model if not available.
+
+    Args:
+        model: The model name to pull
+
+    Returns:
+        True if pull succeeded or user declined, False on error
+    """
+    console.print(f"\n[yellow]Model '[bold]{model}[/bold]' not found locally.[/yellow]")
+    response = console.input("Would you like to pull it now? [y/N]: ").strip().lower()
+
+    if response not in ("y", "yes"):
+        console.print("[dim]Skipping model pull. Server may fail to start.[/dim]")
+        return True
+
+    console.print(f"\n[cyan]Pulling model {model}...[/cyan]\n")
+    try:
+        result = subprocess.run(
+            ["ollama", "pull", model],
+            timeout=600,
+        )
+        if result.returncode == 0:
+            console.print(f"\n[green]Successfully pulled {model}[/green]\n")
+            return True
+        console.print(f"\n[red]Failed to pull {model}[/red]\n")
+        return False
+    except subprocess.TimeoutExpired:
+        console.print(f"\n[red]Timeout pulling {model}[/red]\n")
+        return False
+    except FileNotFoundError:
+        console.print("\n[red]Ollama CLI not found. Please install Ollama.[/red]\n")
+        return False
 
 
 def generate_api_key() -> str:
@@ -123,128 +216,76 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-async def get_mcp_tools_async(
-    exit_stack: AsyncExitStack,
-) -> list[BaseTool]:
-    """Get MCP tools from the Qdrant knowledge base server.
+def create_language_model(model: str | None = None) -> LiteLlm | str:
+    """Create the appropriate language model based on model string.
 
-    Uses the exit_stack pattern to properly manage the MCP connection lifecycle.
-
-    Args:
-        exit_stack: AsyncExitStack to manage MCP connection cleanup
-
-    Returns:
-        List of MCP tools from the Qdrant server
-    """
-    env = get_mcp_server_env()
-
-    server_params = StdioServerParameters(
-        command="uvx",
-        args=["mcp-server-qdrant"],
-        env=env,
-    )
-
-    toolset = McpToolset(
-        connection_params=StdioConnectionParams(
-            server_params=server_params,
-            timeout=60,
-        ),
-    )
-
-    exit_stack.push_async_callback(toolset.close)
-    tools = await toolset.get_tools()
-    return tools
-
-
-async def create_llm_agent_async(
-    exit_stack: AsyncExitStack,
-    use_knowledge_base: bool = True,
-) -> Agent:
-    """Create and configure the A2A test agent using LiteLLM with Ollama.
+    Supports:
+    - Gemini models (gemini-*): Uses direct string for ADK registry
+    - Ollama models: Uses LiteLlm with ollama_chat provider
 
     Args:
-        exit_stack: AsyncExitStack to manage MCP connection cleanup
-        use_knowledge_base: Whether to include knowledge base tools
+        model: Model identifier. If None, uses OLLAMA_MODEL env var or default.
 
     Returns:
-        Configured ADK Agent instance
+        LiteLlm instance for Ollama, or model string for Gemini
     """
     load_dotenv()
 
-    ollama_api_base = os.getenv("OLLAMA_API_BASE", DEFAULT_OLLAMA_API_BASE)
-    ollama_model_name = os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+    effective_model = model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
 
+    if is_gemini_model(effective_model):
+        logger.info("Creating agent with Gemini model: %s", effective_model)
+        return effective_model
+
+    ollama_api_base = os.getenv("OLLAMA_API_BASE", DEFAULT_OLLAMA_API_BASE)
     logger.info(
-        "Creating agent with model: [highlight]%s[/highlight] at [url]%s[/url]",
-        ollama_model_name,
+        "Creating agent with Ollama model: %s at %s",
+        effective_model,
         ollama_api_base,
     )
 
-    language_model = LiteLlm(
-        model=f"ollama_chat/{ollama_model_name}",
+    return LiteLlm(
+        model=f"ollama_chat/{effective_model}",
         api_base=ollama_api_base,
         reasoning_effort="none",
     )
 
-    tools: list[Union[Callable, BaseTool, BaseToolset]] = []
-    if use_knowledge_base:
-        mcp_tools = await get_mcp_tools_async(exit_stack)
-        tools.extend(mcp_tools)
-        logger.info(
-            "Knowledge base tools enabled via Qdrant MCP server (%d tools)",
-            len(mcp_tools),
-        )
 
-    instruction = """You are Handler's Agent, the built-in assistant for the Handler application and an expert on the A2A (Agent-to-Agent) protocol.
+def create_llm_agent(model: str | None = None) -> Agent:
+    """Create and configure the A2A agent.
 
-## About Handler
+    Supports both Ollama models (via LiteLLM) and Gemini models (direct).
+
+    Args:
+        model: Model identifier (e.g., 'llama3.2:1b', 'gemini-2.0-flash')
+
+    Returns:
+        Configured ADK Agent instance
+    """
+    language_model = create_language_model(model)
+
+    instruction = """You are Handler's Agent, the built-in assistant for the Handler application.
 
 Handler is an A2A protocol client published on PyPI as `a2a-handler`. It provides tools for developers to communicate with, test, and debug A2A-compatible agents.
 
 Handler's architecture consists of:
 1. **TUI** - An interactive terminal interface (Textual-based) for managing agent connections, sending messages, and viewing streaming responses
-2. **CLI** - A rich-click powered command-line interface for scripting and automation with commands for:
-   - `message send/stream` - Send messages to agents with optional streaming
-   - `task get/cancel/resubscribe` - Manage A2A tasks
-   - `card get/validate` - Retrieve and validate agent cards
-   - `session list/show/clear` - Manage conversation sessions
-   - `server agent/push` - Run local servers (including this one!)
+2. **CLI** - A rich-click powered command-line interface for scripting and automation
 3. **A2AService** - A unified service layer wrapping the a2a-sdk for protocol operations
-4. **Server Agent** - A local A2A-compatible agent (you!) for testing, built with Google ADK and LiteLLM/Ollama
+4. **Server Agent** - A local A2A-compatible agent (you!) for testing, built with Google ADK
 
 Handler supports streaming responses, push notifications, session persistence, and both JSON and formatted text output.
 
-## Your Capabilities
-
-You have access to a knowledge base about the A2A protocol specification and Handler documentation. Use the `qdrant-find` tool to search for relevant information when answering questions about:
-- A2A protocol concepts, methods, and data structures
-- Handler CLI commands and usage
-- Agent Card configuration
-- Task lifecycle and states
-- Authentication and security
-- Streaming and push notifications
-
-When you learn new information that should be remembered, use the `qdrant-store` tool to save it.
-
-## Guidelines
-
-- Be helpful, concise, and accurate
-- Search the knowledge base before answering technical questions
-- Provide code examples when helpful
-- Explain A2A concepts clearly for both beginners and experts
-- If you're unsure about something, say so and suggest where to find more information"""
+Be conversational, helpful, and concise."""
 
     agent = Agent(
         name="Handler",
         model=language_model,
-        description="Handler's A2A Protocol Expert Agent - answers questions about A2A and Handler",
+        description="Handler's built-in assistant for testing and development",
         instruction=instruction,
-        tools=tools,
     )
 
-    logger.info(
-        "[success]Agent created successfully:[/success] [agent]%s[/agent]", agent.name
-    )
+    logger.info("Agent created successfully: %s", agent.name)
     return agent
 
 
@@ -271,18 +312,6 @@ def build_agent_card(
     )
 
     skills = [
-        AgentSkill(
-            id="a2a_expert",
-            name="A2A Protocol Expert",
-            description="Answers questions about the A2A protocol specification, concepts, methods, and best practices",
-            tags=["a2a", "protocol", "specification", "expert"],
-            examples=[
-                "What is the A2A protocol?",
-                "Explain the Task lifecycle in A2A",
-                "What methods does A2A support?",
-                "How does authentication work in A2A?",
-            ],
-        ),
         AgentSkill(
             id="handler_assistant",
             name="Handler Assistant",
@@ -417,62 +446,12 @@ def create_a2a_application(
     return application
 
 
-async def _run_server_async(
-    host: str,
-    port: int,
-    require_auth: bool,
-    effective_api_key: str | None,
-    init_knowledge: bool,
-) -> None:
-    """Internal async server runner with proper MCP cleanup.
-
-    Args:
-        host: Host address to bind to
-        port: Port number to bind to
-        require_auth: Whether to require API key authentication
-        effective_api_key: API key to use for authentication
-        init_knowledge: Whether to include knowledge base tools
-    """
-    async with AsyncExitStack() as exit_stack:
-        agent = await create_llm_agent_async(
-            exit_stack, use_knowledge_base=init_knowledge
-        )
-        agent_card = build_agent_card(agent, host, port, require_auth=require_auth)
-
-        streaming_enabled = (
-            agent_card.capabilities.streaming if agent_card.capabilities else False
-        )
-        push_notifications_enabled = (
-            agent_card.capabilities.push_notifications
-            if agent_card.capabilities
-            else False
-        )
-        auth_enabled = agent_card.security_schemes is not None
-
-        logger.info(
-            "Agent card capabilities: streaming=%s, push_notifications=%s, auth=%s",
-            streaming_enabled,
-            push_notifications_enabled,
-            auth_enabled,
-        )
-
-        a2a_application = create_a2a_application(agent, agent_card, effective_api_key)
-
-        config = uvicorn.Config(a2a_application, host=host, port=port)
-        server = uvicorn.Server(config)
-
-        try:
-            await server.serve()
-        finally:
-            logger.info("Server shutting down, cleaning up MCP connections...")
-
-
 def run_server(
     host: str,
     port: int,
     require_auth: bool = False,
     api_key: str | None = None,
-    init_knowledge: bool = True,
+    model: str | None = None,
 ) -> None:
     """Start the A2A server agent.
 
@@ -481,16 +460,28 @@ def run_server(
         port: Port number to bind to
         require_auth: Whether to require API key authentication
         api_key: Specific API key to use (generated if not provided and auth required)
-        init_knowledge: Whether to initialize the knowledge base on startup
+        model: Model identifier (e.g., 'llama3.2:1b', 'gemini-2.0-flash')
     """
+    effective_model = model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+
+    if is_gemini_model(effective_model):
+        if not check_gemini_auth():
+            console.print(
+                "[red]Gemini model selected but no authentication found.[/red]\n"
+                "Please set GOOGLE_API_KEY or configure ADC:\n"
+                "  [dim]gcloud auth application-default login[/dim]\n"
+            )
+            return
+        console.print(f"[green]Using Gemini model:[/green] {effective_model}\n")
+    else:
+        if not check_ollama_model(effective_model):
+            if not prompt_ollama_pull(effective_model):
+                return
+
     console.print(
         f"\n[bold]Starting Handler server on [url]{host}:{port}[/url][/bold]\n"
     )
     logger.info("Initializing A2A server with push notification support...")
-
-    if init_knowledge:
-        logger.info("Initializing knowledge base...")
-        asyncio.run(initialize_knowledge_base())
 
     effective_api_key = None
     if require_auth:
@@ -505,12 +496,27 @@ def run_server(
             f"--api-key {effective_api_key}[/dim]\n"
         )
 
-    asyncio.run(
-        _run_server_async(
-            host=host,
-            port=port,
-            require_auth=require_auth,
-            effective_api_key=effective_api_key,
-            init_knowledge=init_knowledge,
-        )
+    agent = create_llm_agent(model=effective_model)
+    agent_card = build_agent_card(agent, host, port, require_auth=require_auth)
+
+    streaming_enabled = (
+        agent_card.capabilities.streaming if agent_card.capabilities else False
     )
+    push_notifications_enabled = (
+        agent_card.capabilities.push_notifications if agent_card.capabilities else False
+    )
+    auth_enabled = agent_card.security_schemes is not None
+
+    logger.info(
+        "Agent card capabilities: streaming=%s, push_notifications=%s, auth=%s",
+        streaming_enabled,
+        push_notifications_enabled,
+        auth_enabled,
+    )
+
+    a2a_application = create_a2a_application(agent, agent_card, effective_api_key)
+
+    config = uvicorn.Config(a2a_application, host=host, port=port)
+    server = uvicorn.Server(config)
+
+    asyncio.run(server.serve())
