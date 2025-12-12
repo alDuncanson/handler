@@ -201,6 +201,11 @@ Footer Button:hover {
     background: $primary;
 }
 
+Footer Button:focus {
+    color: $text;
+    background: $primary;
+}
+
 /* Focusable panel containers */
 AgentCardPanel:focus {
     border: round $accent;
