@@ -28,15 +28,13 @@ Screen {
 /* Panels - Cockpit Style */
 .panel {
     border: round $secondary; /* Monochromatic border */
-    border-title-color: $accent;
     background: $background; /* Blend into screen, distinct only by border */
-    padding: 1 2;
+    padding: 0 1;
 }
 
 /* Highlight panel when focused */
 .panel:focus-within {
     border: round $accent;
-    border-title-color: $accent;
 }
 
 #contact-container {
@@ -109,6 +107,14 @@ Button:hover {
 }
 
 /* Agent Card Internal */
+#placeholder {
+    height: 1fr;
+    width: 1fr;
+    hatch: cross $secondary 30%;
+    content-align: center middle;
+    color: $text-muted;
+}
+
 #agent-card-tabs {
     height: 1fr;
 }
@@ -122,7 +128,12 @@ Button:hover {
     overflow-y: auto;
 }
 
-#agent-info {
+#pretty-scroll {
+    height: 1fr;
+    scrollbar-size: 1 1;
+}
+
+#agent-pretty {
     height: auto;
     color: $text;
 }

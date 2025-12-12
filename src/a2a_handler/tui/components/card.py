@@ -27,15 +27,6 @@ TEXTUAL_TO_SYNTAX_THEME_MAP: dict[str, str] = {
     "monokai": "monokai",
 }
 
-SHORT_VIEW_FIELDS = [
-    "name",
-    "description",
-    "version",
-    "url",
-    "defaultInputModes",
-    "defaultOutputModes",
-]
-
 
 class AgentCardPanel(Container):
     """Panel displaying agent card information with tabs."""
@@ -58,16 +49,12 @@ class AgentCardPanel(Container):
         self._current_agent_card: AgentCard | None = None
 
     def compose(self) -> ComposeResult:
+        yield Static("Connect to an A2A server", id="placeholder")
         with TabbedContent(id="agent-card-tabs"):
-            with TabPane("Short", id="short-tab"):
+            with TabPane("Pretty", id="pretty-tab"):
                 yield VerticalScroll(
-                    Static("Not connected", id="agent-short"),
-                    id="short-scroll",
-                )
-            with TabPane("Long", id="long-tab"):
-                yield VerticalScroll(
-                    Static("", id="agent-long"),
-                    id="long-scroll",
+                    Static("", id="agent-pretty"),
+                    id="pretty-scroll",
                 )
             with TabPane("Raw", id="raw-tab"):
                 yield VerticalScroll(
@@ -76,11 +63,24 @@ class AgentCardPanel(Container):
                 )
 
     def on_mount(self) -> None:
-        self.border_title = "AGENT CARD"
-        self.border_subtitle = "READY"
         for widget in self.query("TabbedContent, Tabs, Tab, TabPane, VerticalScroll"):
             widget.can_focus = False
+        self._show_placeholder()
         logger.debug("Agent card panel mounted")
+
+    def _show_placeholder(self) -> None:
+        """Show the hatch placeholder, hide the tabbed content."""
+        placeholder = self.query_one("#placeholder", Static)
+        tabbed_content = self.query_one("#agent-card-tabs", TabbedContent)
+        placeholder.display = True
+        tabbed_content.display = False
+
+    def _show_tabs(self) -> None:
+        """Show the tabbed content, hide the placeholder."""
+        placeholder = self.query_one("#placeholder", Static)
+        tabbed_content = self.query_one("#agent-card-tabs", TabbedContent)
+        placeholder.display = False
+        tabbed_content.display = True
 
     def _get_syntax_theme_for_current_app_theme(self) -> str:
         """Get the Rich Syntax theme name for the current app theme."""
@@ -144,28 +144,8 @@ class AgentCardPanel(Container):
 
         return f"{indentation_prefix}{value}"
 
-    def _build_short_view_content(self, agent_card: AgentCard) -> str:
-        """Build the short view with essential fields only."""
-        card_data = agent_card.model_dump()
-        formatted_lines = []
-
-        for field_name in SHORT_VIEW_FIELDS:
-            field_value = card_data.get(field_name)
-            if self._is_value_empty(field_value):
-                continue
-            formatted_key = self._convert_key_to_sentence_case(field_name)
-            if isinstance(field_value, (list, dict)):
-                formatted_lines.append(f"[bold]{formatted_key}[/]")
-                formatted_lines.append(
-                    self._format_nested_value(field_value, indentation_level=1)
-                )
-            else:
-                formatted_lines.append(f"[bold]{formatted_key}:[/] {field_value}")
-
-        return "\n".join(formatted_lines)
-
-    def _build_long_view_content(self, agent_card: AgentCard) -> str:
-        """Build the long view with all non-empty fields."""
+    def _build_pretty_view_content(self, agent_card: AgentCard) -> str:
+        """Build the pretty view with all non-empty fields formatted nicely."""
         card_data = agent_card.model_dump()
         formatted_lines = []
 
@@ -187,25 +167,22 @@ class AgentCardPanel(Container):
         """Update the displayed agent card."""
         self._current_agent_card = agent_card
 
-        short_view_widget = self.query_one("#agent-short", Static)
-        long_view_widget = self.query_one("#agent-long", Static)
+        pretty_view_widget = self.query_one("#agent-pretty", Static)
         raw_view_widget = self.query_one("#agent-raw", Static)
 
         if agent_card is None:
             logger.debug("Clearing agent card display")
-            short_view_widget.update("Not connected")
-            long_view_widget.update("")
+            pretty_view_widget.update("")
             raw_view_widget.update("")
-            self.border_subtitle = "READY"
+            self._show_placeholder()
         else:
             logger.info("Displaying agent card for: %s", agent_card.name)
-            short_view_widget.update(self._build_short_view_content(agent_card))
-            long_view_widget.update(self._build_long_view_content(agent_card))
+            pretty_view_widget.update(self._build_pretty_view_content(agent_card))
 
             json_content = json.dumps(agent_card.model_dump(), indent=2, default=str)
             syntax_theme = self._get_syntax_theme_for_current_app_theme()
             raw_view_widget.update(Syntax(json_content, "json", theme=syntax_theme))
-            self.border_subtitle = "ACTIVE"
+            self._show_tabs()
 
     def refresh_theme(self) -> None:
         """Refresh the raw view syntax highlighting for theme changes."""
@@ -227,8 +204,7 @@ class AgentCardPanel(Container):
         active_tab_id = tabbed_content.active
 
         scroll_container_map = {
-            "short-tab": "#short-scroll",
-            "long-tab": "#long-scroll",
+            "pretty-tab": "#pretty-scroll",
             "raw-tab": "#raw-scroll",
         }
 

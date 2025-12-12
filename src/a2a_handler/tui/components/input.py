@@ -20,8 +20,6 @@ class InputPanel(Container):
             yield Button("SEND", id="send-btn")
 
     def on_mount(self) -> None:
-        self.border_title = "INPUT"
-        self.border_subtitle = "PRESS ENTER TO SEND"
         self.query_one("#send-btn", Button).can_focus = False
         logger.debug("Input panel mounted")
 

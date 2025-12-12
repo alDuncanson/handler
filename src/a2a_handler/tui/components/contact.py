@@ -15,7 +15,7 @@ class ContactPanel(Container):
     ALLOW_MAXIMIZE = False
 
     def compose(self) -> ComposeResult:
-        yield Label("ENDPOINT", classes="section-label")
+        yield Label("A2A SERVER", classes="section-label")
         yield Input(
             placeholder="http://localhost:8000",
             value="http://localhost:8000",
@@ -36,7 +36,6 @@ class ContactPanel(Container):
             self.post_message(Button.Pressed(disconnect_btn))
 
     def on_mount(self) -> None:
-        self.border_title = "CONTACT"
         self.query_one("#connect-btn", Button).can_focus = False
         self.query_one("#disconnect-btn", Button).can_focus = False
         logger.debug("Contact panel mounted")

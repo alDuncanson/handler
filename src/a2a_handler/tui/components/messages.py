@@ -108,7 +108,6 @@ class MessagesPanel(Container):
         yield ChatScrollContainer(id="chat")
 
     def on_mount(self) -> None:
-        self.border_title = "MESSAGES"
         logger.debug("Messages panel mounted")
 
     def _get_chat_container(self) -> ChatScrollContainer:
@@ -138,9 +137,7 @@ class MessagesPanel(Container):
         self.add_message("system", content)
 
     def update_message_count(self) -> None:
-        chat_container = self._get_chat_container()
-        message_count = len(chat_container.children)
-        self.border_subtitle = f"{message_count} MESSAGES"
+        pass
 
     async def clear(self) -> None:
         logger.info("Clearing chat messages")
@@ -227,9 +224,7 @@ class TabbedMessagesPanel(Container):
         logs_panel.load_logs(lines)
 
     def update_message_count(self) -> None:
-        chat_container = self._get_chat_container()
-        message_count = len(chat_container.children)
-        self.border_subtitle = f"{message_count} MESSAGES"
+        pass
 
     async def clear(self) -> None:
         logger.info("Clearing chat messages")
