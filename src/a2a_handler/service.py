@@ -159,6 +159,7 @@ class A2AService:
         self.credentials = credentials
         self._cached_client: Client | None = None
         self._cached_agent_card: AgentCard | None = None
+        self._applied_auth_headers: set[str] = set()
 
         if credentials:
             self.set_credentials(credentials)
@@ -169,9 +170,14 @@ class A2AService:
         Args:
             credentials: Authentication credentials to apply
         """
+        for header_name in self._applied_auth_headers:
+            self.http_client.headers.pop(header_name, None)
+        self._applied_auth_headers.clear()
+
         self.credentials = credentials
         auth_headers = credentials.to_headers()
         self.http_client.headers.update(auth_headers)
+        self._applied_auth_headers = set(auth_headers.keys())
         logger.debug("Applied authentication headers: %s", list(auth_headers.keys()))
 
     async def get_card(self) -> AgentCard:
