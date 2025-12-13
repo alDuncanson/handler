@@ -11,12 +11,19 @@ logger = get_logger(__name__)
 
 
 class InputRow(Horizontal):
-    """Input row that shows button on hover."""
+    """Input row that shows button on hover or when input is focused."""
 
     def on_enter(self, event: Enter) -> None:
         self.query_one("#send-btn", Button).display = True
 
     def on_leave(self, event: Leave) -> None:
+        if not self.query_one("#message-input", Input).has_focus:
+            self.query_one("#send-btn", Button).display = False
+
+    def on_descendant_focus(self) -> None:
+        self.query_one("#send-btn", Button).display = True
+
+    def on_descendant_blur(self) -> None:
         self.query_one("#send-btn", Button).display = False
 
 

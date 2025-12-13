@@ -78,7 +78,9 @@ Screen {
     margin-bottom: 1;
 }
 
-#issues-link {
+#report-bug-link,
+#sponsor-link,
+#discuss-link {
     height: auto;
     color: $accent;
 }
@@ -123,29 +125,6 @@ Button:hover {
     hatch: cross $secondary 30%;
     content-align: center middle;
     color: $text-muted;
-}
-
-#agent-card-tabs {
-    height: 1fr;
-}
-
-#agent-card-tabs ContentSwitcher {
-    height: 1fr;
-}
-
-#agent-card-tabs TabPane {
-    height: 1fr;
-    overflow-y: auto;
-}
-
-#pretty-scroll {
-    height: 1fr;
-    scrollbar-size: 1 1;
-}
-
-#agent-pretty {
-    height: auto;
-    color: $text;
 }
 
 #raw-scroll {

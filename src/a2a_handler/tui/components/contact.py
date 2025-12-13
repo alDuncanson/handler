@@ -12,16 +12,25 @@ from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
 
-ISSUES_URL = "https://github.com/alDuncanson/handler/issues"
+REPORT_BUG_URL = "https://github.com/alDuncanson/Handler/issues"
+SPONSOR_URL = "https://github.com/sponsors/alDuncanson"
+DISCUSS_URL = "https://github.com/alDuncanson/Handler/discussions/new?category=ideas"
 
 
 class UrlRow(Horizontal):
-    """URL input row that shows button on hover."""
+    """URL input row that shows button on hover or when input is focused."""
 
     def on_enter(self, event: Enter) -> None:
         self.query_one("#connect-btn", Button).display = True
 
     def on_leave(self, event: Leave) -> None:
+        if not self.query_one("#agent-url", Input).has_focus:
+            self.query_one("#connect-btn", Button).display = False
+
+    def on_descendant_focus(self) -> None:
+        self.query_one("#connect-btn", Button).display = True
+
+    def on_descendant_blur(self) -> None:
         self.query_one("#connect-btn", Button).display = False
 
 
@@ -54,7 +63,7 @@ class ContactPanel(Container):
                             value="http://localhost:8000",
                             id="agent-url",
                         ),
-                        Button("SEND", id="connect-btn"),
+                        Button("CONNECT", id="connect-btn"),
                         id="url-row",
                     ),
                     id="server-content",
@@ -62,7 +71,18 @@ class ContactPanel(Container):
             with TabPane("About", id="about-tab"):
                 yield Vertical(
                     Static(id="version-info"),
-                    Static(f"[@click=open_issues]{ISSUES_URL}[/]", id="issues-link"),
+                    Static(
+                        f"Report a bug: [@click=open_url('{REPORT_BUG_URL}')]{REPORT_BUG_URL}[/]",
+                        id="report-bug-link",
+                    ),
+                    Static(
+                        f"Sponsor or donate: [@click=open_url('{SPONSOR_URL}')]{SPONSOR_URL}[/]",
+                        id="sponsor-link",
+                    ),
+                    Static(
+                        f"Discuss a feature idea: [@click=open_url('{DISCUSS_URL}')]{DISCUSS_URL}[/]",
+                        id="discuss-link",
+                    ),
                     id="about-content",
                 )
 
@@ -92,11 +112,11 @@ class ContactPanel(Container):
         url_input = self.query_one("#agent-url", Input)
         url_input.can_focus = False
 
-    def action_open_issues(self) -> None:
-        """Open the issues URL in the browser."""
+    def action_open_url(self, url: str) -> None:
+        """Open the given URL in the browser."""
         import webbrowser
 
-        webbrowser.open(ISSUES_URL)
+        webbrowser.open(url)
 
     def action_previous_tab(self) -> None:
         """Switch to the previous tab."""
