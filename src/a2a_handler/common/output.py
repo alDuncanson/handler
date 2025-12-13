@@ -1,69 +1,71 @@
-"""Output formatting system with mode-aware styling.
+"""Simple output formatting system for CLI.
 
-Provides a unified output interface supporting raw, text, and JSON modes.
+Provides styled console output with ANSI colors.
 """
 
 from __future__ import annotations
 
 import json as json_module
-import re
-from contextlib import contextmanager
-from enum import Enum
-from typing import Any, Generator
-
-from rich.console import Console
-from rich.markdown import Markdown
-
-from .logging import console
-
+import sys
+from typing import Any, TextIO
 
 TERMINAL_STATES = {"completed", "failed", "canceled", "rejected"}
 SUCCESS_STATES = {"completed"}
 ERROR_STATES = {"failed", "rejected"}
 WARNING_STATES = {"canceled"}
 
+# Basic ANSI color codes
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
 
-class OutputMode(Enum):
-    """Output mode for CLI commands."""
 
-    RAW = "raw"
-    TEXT = "text"
-    JSON = "json"
-
-
-def _strip_markup(text: str) -> str:
-    """Strip Rich markup for raw output."""
-    return re.sub(r"\[/?[^\]]+\]", "", text)
+def _supports_color(stream: TextIO) -> bool:
+    """Check if the stream supports ANSI colors."""
+    if not hasattr(stream, "isatty"):
+        return False
+    if not stream.isatty():
+        return False
+    return True
 
 
 class Output:
-    """Manages output mode and styling.
+    """Manages styled console output.
 
     Provides a unified interface for outputting text, fields, JSON, and
-    markdown with automatic mode-aware formatting.
+    markdown with automatic color formatting when supported.
     """
 
-    def __init__(self, mode: OutputMode) -> None:
-        """Initialize output context.
+    def __init__(self) -> None:
+        self._use_color = _supports_color(sys.stdout)
 
-        Args:
-            mode: Output mode (raw, text, or json)
-        """
-        self.mode = mode
-        self._raw_console = Console(highlight=False, markup=False)
+    def _style(self, text: str, *codes: str) -> str:
+        """Apply ANSI codes if color is enabled."""
+        if not self._use_color or not codes:
+            return text
+        return "".join(codes) + text + RESET
 
-    def _print(self, text: str, style: str | None = None) -> None:
-        """Internal print method that respects mode."""
-        if self.mode == OutputMode.RAW:
-            self._raw_console.print(_strip_markup(text))
-        elif self.mode == OutputMode.TEXT and style:
-            console.print(text, style=style)
-        else:
-            console.print(text, markup=self.mode == OutputMode.TEXT)
+    def _print(self, text: str) -> None:
+        """Print text to stdout."""
+        print(text)
 
     def line(self, text: str, style: str | None = None) -> None:
         """Print a line of text with optional style."""
-        self._print(text, style)
+        if style and self._use_color:
+            code = {
+                "green": GREEN,
+                "red": RED,
+                "yellow": YELLOW,
+                "cyan": CYAN,
+                "dim": DIM,
+                "bold": BOLD,
+            }.get(style, "")
+            text = self._style(text, code)
+        self._print(text)
 
     def field(
         self,
@@ -74,107 +76,80 @@ class Output:
     ) -> None:
         """Print a field as 'Name: value' with formatting."""
         value_str = str(value) if value is not None else "none"
+        name_part = self._style(f"{name}:", BOLD) if self._use_color else f"{name}:"
 
-        if self.mode == OutputMode.TEXT:
+        if self._use_color:
             if value_style:
-                console.print(f"[bold]{name}:[/bold] [{value_style}]{value_str}[/]")
+                code = {"green": GREEN, "red": RED, "cyan": CYAN}.get(value_style, "")
+                value_part = self._style(value_str, code)
             elif dim_value:
-                console.print(f"[bold]{name}:[/bold] [dim]{value_str}[/dim]")
+                value_part = self._style(value_str, DIM)
             else:
-                console.print(f"[bold]{name}:[/bold] {value_str}")
+                value_part = value_str
         else:
-            self._raw_console.print(f"{name}: {_strip_markup(value_str)}")
+            value_part = value_str
+
+        self._print(f"{name_part} {value_part}")
 
     def header(self, text: str) -> None:
         """Print a section header."""
-        if self.mode == OutputMode.TEXT:
-            console.print(f"\n[bold]{text}[/bold]")
-        else:
-            self._raw_console.print(f"\n{text}")
+        styled = self._style(text, BOLD) if self._use_color else text
+        self._print(f"\n{styled}")
 
     def subheader(self, text: str) -> None:
         """Print a subheader (less prominent than header)."""
-        if self.mode == OutputMode.TEXT:
-            console.print(f"[bold cyan]{text}[/bold cyan]")
-        else:
-            self._raw_console.print(text)
+        styled = self._style(text, BOLD, CYAN) if self._use_color else text
+        self._print(styled)
 
     def blank(self) -> None:
         """Print a blank line."""
-        if self.mode == OutputMode.TEXT:
-            console.print()
-        else:
-            self._raw_console.print()
+        self._print("")
 
     def state(self, name: str, state: str) -> None:
         """Print a state field with appropriate coloring."""
-        if self.mode == OutputMode.TEXT:
-            lower = state.lower()
-            if lower in SUCCESS_STATES:
-                style = "green"
-            elif lower in ERROR_STATES:
-                style = "red"
-            elif lower in WARNING_STATES:
-                style = "yellow"
-            elif lower in TERMINAL_STATES:
-                style = "bold"
-            else:
-                style = "cyan"
-            console.print(f"[bold]{name}:[/bold] [{style}]{state}[/{style}]")
+        lower = state.lower()
+        if lower in SUCCESS_STATES:
+            style = "green"
+        elif lower in ERROR_STATES:
+            style = "red"
+        elif lower in WARNING_STATES:
+            style = "yellow"
         else:
-            self._raw_console.print(f"{name}: {state}")
+            style = "cyan"
+
+        name_part = self._style(f"{name}:", BOLD) if self._use_color else f"{name}:"
+        code = {"green": GREEN, "red": RED, "yellow": YELLOW, "cyan": CYAN}.get(
+            style, ""
+        )
+        value_part = self._style(state, code) if self._use_color else state
+        self._print(f"{name_part} {value_part}")
 
     def success(self, text: str) -> None:
         """Print a success message."""
-        self._print(text, "green")
+        self.line(text, "green")
 
     def error(self, text: str) -> None:
         """Print an error message."""
-        self._print(text, "red bold")
+        styled = self._style(text, RED, BOLD) if self._use_color else text
+        self._print(styled)
 
     def warning(self, text: str) -> None:
         """Print a warning message."""
-        self._print(text, "yellow")
+        self.line(text, "yellow")
 
     def dim(self, text: str) -> None:
         """Print dimmed/muted text."""
-        self._print(text, "dim")
+        self.line(text, "dim")
 
     def json(self, data: Any) -> None:
         """Print JSON data."""
         json_str = json_module.dumps(data, indent=2, default=str)
-        self._raw_console.print(json_str)
+        self._print(json_str)
 
     def markdown(self, text: str) -> None:
-        """Print markdown content."""
-        if self.mode == OutputMode.TEXT:
-            console.print(Markdown(text))
-        else:
-            self._raw_console.print(text)
+        """Print markdown content (as plain text)."""
+        self._print(text)
 
     def list_item(self, text: str, bullet: str = "•") -> None:
         """Print a list item with bullet."""
-        if self.mode == OutputMode.TEXT:
-            console.print(f"  [dim]{bullet}[/dim] {text}")
-        else:
-            self._raw_console.print(f"  {bullet} {_strip_markup(text)}")
-
-
-_current_context: Output | None = None
-
-
-@contextmanager
-def get_output_context(
-    mode: OutputMode | str,
-) -> Generator[Output, None, None]:
-    global _current_context
-
-    if isinstance(mode, str):
-        mode = OutputMode(mode)
-
-    context = Output(mode)
-    _current_context = context
-    try:
-        yield context
-    finally:
-        _current_context = None
+        self._print(f"  {bullet} {text}")

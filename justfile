@@ -18,7 +18,7 @@ tui:
 
 # Run the TUI in development mode (with Textual devtools support)
 tui-dev:
-    uv run textual run --dev handler.tui:HandlerTUI
+    uv run textual run --dev a2a_handler.tui:HandlerTUI
 
 # Serve the TUI for web access
 web:

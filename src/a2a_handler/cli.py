@@ -10,6 +10,7 @@ Provides commands for interacting with A2A agents:
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Optional
 
@@ -25,20 +26,26 @@ from a2a.client.errors import (
 from a2a.types import AgentCard
 
 from a2a_handler import __version__
+from a2a_handler.auth import (
+    AuthCredentials,
+    AuthType,
+    create_api_key_auth,
+    create_bearer_auth,
+)
 from a2a_handler.common import (
-    format_field_name,
-    format_value,
+    Output,
     get_logger,
-    get_output_context,
     setup_logging,
 )
-from a2a_handler.common.output import Output
 from a2a_handler.server import run_server
 from a2a_handler.service import A2AService, SendResult, TaskResult
 from a2a_handler.session import (
+    clear_credentials,
     clear_session,
+    get_credentials,
     get_session,
     get_session_store,
+    set_credentials,
     update_session,
 )
 from a2a_handler.tui import HandlerTUI
@@ -63,7 +70,6 @@ click.rich_click.STYLE_SWITCH = "bold green"
 click.rich_click.OPTION_GROUPS = {
     "handler": [
         {"name": "Global Options", "options": ["--verbose", "--debug", "--help"]},
-        {"name": "Output Options", "options": ["--raw"]},
     ],
     "handler message send": [
         {
@@ -71,10 +77,13 @@ click.rich_click.OPTION_GROUPS = {
             "options": ["--stream", "--continue", "--context-id", "--task-id"],
         },
         {
+            "name": "Authentication Options",
+            "options": ["--bearer", "--api-key"],
+        },
+        {
             "name": "Push Notification Options",
             "options": ["--push-url", "--push-token"],
         },
-        {"name": "Output Options", "options": ["--output", "--help"]},
     ],
     "handler message stream": [
         {
@@ -82,22 +91,22 @@ click.rich_click.OPTION_GROUPS = {
             "options": ["--continue", "--context-id", "--task-id"],
         },
         {
+            "name": "Authentication Options",
+            "options": ["--bearer", "--api-key"],
+        },
+        {
             "name": "Push Notification Options",
             "options": ["--push-url", "--push-token"],
         },
-        {"name": "Output Options", "options": ["--output", "--help"]},
     ],
     "handler task get": [
         {"name": "Query Options", "options": ["--history-length"]},
-        {"name": "Output Options", "options": ["--output", "--help"]},
     ],
     "handler task notification set": [
         {"name": "Notification Options", "options": ["--url", "--token"]},
-        {"name": "Output Options", "options": ["--output", "--help"]},
     ],
     "handler card get": [
         {"name": "Card Options", "options": ["--authenticated"]},
-        {"name": "Output Options", "options": ["--output", "--help"]},
     ],
     "handler server agent": [
         {"name": "Server Options", "options": ["--host", "--port", "--help"]},
@@ -108,12 +117,19 @@ click.rich_click.OPTION_GROUPS = {
     "handler session clear": [
         {"name": "Clear Options", "options": ["--all", "--help"]},
     ],
+    "handler auth set": [
+        {
+            "name": "Auth Type",
+            "options": ["--bearer", "--api-key", "--api-key-header"],
+        },
+    ],
 }
 
 click.rich_click.COMMAND_GROUPS = {
     "handler": [
         {"name": "Agent Communication", "commands": ["message", "task"]},
         {"name": "Agent Discovery", "commands": ["card"]},
+        {"name": "Authentication", "commands": ["auth"]},
         {"name": "Interfaces", "commands": ["tui", "server"]},
         {"name": "Utilities", "commands": ["session", "version"]},
     ],
@@ -135,6 +151,9 @@ click.rich_click.COMMAND_GROUPS = {
     ],
     "handler session": [
         {"name": "Session Commands", "commands": ["list", "show", "clear"]},
+    ],
+    "handler auth": [
+        {"name": "Auth Commands", "commands": ["set", "show", "clear"]},
     ],
 }
 
@@ -193,12 +212,10 @@ def _handle_client_error(e: Exception, agent_url: str, context: object) -> None:
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--debug", "-d", is_flag=True, help="Enable debug logging")
-@click.option("--raw", "-r", is_flag=True, help="Output raw text without formatting")
 @click.pass_context
-def cli(ctx: click.Context, verbose: bool, debug: bool, raw: bool) -> None:
+def cli(ctx: click.Context, verbose: bool, debug: bool) -> None:
     """Handler - A2A protocol client CLI."""
     ctx.ensure_object(dict)
-    ctx.obj["raw"] = raw
 
     if debug:
         setup_logging(level="DEBUG")
@@ -206,15 +223,6 @@ def cli(ctx: click.Context, verbose: bool, debug: bool, raw: bool) -> None:
         setup_logging(level="INFO")
     else:
         setup_logging(level="ERROR")
-
-
-def get_mode(ctx: click.Context, output: str) -> str:
-    """Get output mode from context and output option."""
-    if output == "json":
-        return "json"
-    if ctx.obj.get("raw"):
-        return "raw"
-    return "text"
 
 
 # ============================================================================
@@ -239,16 +247,9 @@ def message() -> None:
 )
 @click.option("--push-url", help="Webhook URL for push notifications")
 @click.option("--push-token", help="Authentication token for push notifications")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 def message_send(
-    ctx: click.Context,
     agent_url: str,
     text: str,
     stream: bool,
@@ -257,7 +258,8 @@ def message_send(
     use_session: bool,
     push_url: Optional[str],
     push_token: Optional[str],
-    output: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
 ) -> None:
     """Send a message to an agent and receive a response."""
     log.info("Sending message to %s", agent_url)
@@ -268,35 +270,41 @@ def message_send(
             context_id = session.context_id
             log.info("Using saved context: %s", context_id)
 
-    mode = get_mode(ctx, output)
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_send() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(
-                        http_client,
-                        agent_url,
-                        enable_streaming=stream,
-                        push_notification_url=push_url,
-                        push_notification_token=push_token,
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(
+                    http_client,
+                    agent_url,
+                    enable_streaming=stream,
+                    push_notification_url=push_url,
+                    push_notification_token=push_token,
+                    credentials=credentials,
+                )
+
+                output.dim(f"Sending to {agent_url}...")
+
+                if stream:
+                    await _stream_message(
+                        service, text, context_id, task_id, agent_url, output
                     )
+                else:
+                    result = await service.send(text, context_id, task_id)
+                    update_session(agent_url, result.context_id, result.task_id)
+                    _format_send_result(result, output)
 
-                    if mode != "json":
-                        output.dim(f"Sending to {agent_url}...")
-
-                    if stream:
-                        await _stream_message(
-                            service, text, context_id, task_id, agent_url, output
-                        )
-                    else:
-                        result = await service.send(text, context_id, task_id)
-                        update_session(agent_url, result.context_id, result.task_id)
-                        _format_send_result(result, output)
-
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_send())
 
@@ -311,13 +319,8 @@ def message_send(
 )
 @click.option("--push-url", help="Webhook URL for push notifications")
 @click.option("--push-token", help="Authentication token for push notifications")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 @click.pass_context
 def message_stream(
     ctx: click.Context,
@@ -328,7 +331,8 @@ def message_stream(
     use_session: bool,
     push_url: Optional[str],
     push_token: Optional[str],
-    output: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
 ) -> None:
     """Send a message and stream the response in real-time."""
     ctx.invoke(
@@ -341,7 +345,8 @@ def message_stream(
         use_session=use_session,
         push_url=push_url,
         push_token=push_token,
-        output=output,
+        bearer_token=bearer_token,
+        api_key=api_key,
     )
 
 
@@ -359,45 +364,36 @@ async def _stream_message(
     last_task_id: str | None = None
     last_state = None
 
-    is_json = output.mode.value == "json"
-
     async for event in service.stream(text, context_id, task_id):
         last_context_id = event.context_id or last_context_id
         last_task_id = event.task_id or last_task_id
         last_state = event.state or last_state
 
-        if is_json:
-            event_data = {
-                "type": event.event_type,
-                "context_id": event.context_id,
-                "task_id": event.task_id,
-                "state": event.state.value if event.state else None,
-                "text": event.text,
-            }
-            output.json(event_data)
-        else:
-            if event.text and event.text not in collected_text:
-                output.line(event.text)
-                collected_text.append(event.text)
+        if event.text and event.text not in collected_text:
+            output.line(event.text)
+            collected_text.append(event.text)
 
     update_session(agent_url, last_context_id, last_task_id)
 
-    if not is_json:
+    output.blank()
+    if last_context_id:
+        output.field("Context ID", last_context_id, dim_value=True)
+    if last_task_id:
+        output.field("Task ID", last_task_id, dim_value=True)
+    if last_state:
+        output.state("State", last_state.value)
+
+    if last_state and last_state.value == "auth-required":
         output.blank()
-        if last_context_id:
-            output.field("Context ID", last_context_id, dim_value=True)
-        if last_task_id:
-            output.field("Task ID", last_task_id, dim_value=True)
-        if last_state:
-            output.state("State", last_state.value)
+        output.warning("Authentication required")
+        output.line("The agent requires authentication to complete this task.")
+        output.line(
+            "Set credentials with: handler auth set <agent_url> --bearer <token>"
+        )
 
 
 def _format_send_result(result: SendResult, output: Output) -> None:
     """Format and display a send result."""
-    if output.mode.value == "json":
-        output.json(result.raw)
-        return
-
     output.blank()
     if result.context_id:
         output.field("Context ID", result.context_id, dim_value=True)
@@ -407,7 +403,16 @@ def _format_send_result(result: SendResult, output: Output) -> None:
         output.state("State", result.state.value)
 
     output.blank()
-    if result.text:
+    if result.needs_auth:
+        output.warning("Authentication required")
+        output.line("The agent requires authentication to complete this task.")
+        output.line(
+            "Set credentials with: handler auth set <agent_url> --bearer <token>"
+        )
+        output.line(
+            "Or provide inline: handler message send <agent_url> --bearer <token> ..."
+        )
+    elif result.text:
         output.markdown(result.text)
     else:
         output.dim("No text content in response")
@@ -430,35 +435,24 @@ def task() -> None:
 @click.option(
     "--history-length", "-n", type=int, help="Number of history messages to include"
 )
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
 def task_get(
-    ctx: click.Context,
     agent_url: str,
     task_id: str,
     history_length: Optional[int],
-    output: str,
 ) -> None:
     """Retrieve the current status of a task."""
     log.info("Getting task %s from %s", task_id, agent_url)
-    mode = get_mode(ctx, output)
 
     async def do_get() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    result = await service.get_task(task_id, history_length)
-                    _format_task_result(result, output)
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+                result = await service.get_task(task_id, history_length)
+                _format_task_result(result, output)
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_get())
 
@@ -466,37 +460,26 @@ def task_get(
 @task.command("cancel")
 @click.argument("agent_url")
 @click.argument("task_id")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -> None:
+def task_cancel(agent_url: str, task_id: str) -> None:
     """Request cancellation of a task."""
     log.info("Canceling task %s at %s", task_id, agent_url)
-    mode = get_mode(ctx, output)
 
     async def do_cancel() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
 
-                    if mode != "json":
-                        output.dim(f"Canceling task {task_id}...")
+                output.dim(f"Canceling task {task_id}...")
 
-                    result = await service.cancel_task(task_id)
-                    _format_task_result(result, output)
+                result = await service.cancel_task(task_id)
+                _format_task_result(result, output)
 
-                    if mode != "json":
-                        output.success("Task canceled")
+                output.success("Task canceled")
 
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_cancel())
 
@@ -504,64 +487,36 @@ def task_cancel(ctx: click.Context, agent_url: str, task_id: str, output: str) -
 @task.command("resubscribe")
 @click.argument("agent_url")
 @click.argument("task_id")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def task_resubscribe(
-    ctx: click.Context, agent_url: str, task_id: str, output: str
-) -> None:
+def task_resubscribe(agent_url: str, task_id: str) -> None:
     """Resubscribe to a task's SSE stream after disconnection."""
     log.info("Resubscribing to task %s at %s", task_id, agent_url)
-    mode = get_mode(ctx, output)
 
     async def do_resubscribe() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    is_json = output.mode.value == "json"
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
 
-                    if not is_json:
-                        output.dim(f"Resubscribing to task {task_id}...")
+                output.dim(f"Resubscribing to task {task_id}...")
 
-                    async for event in service.resubscribe(task_id):
-                        if is_json:
-                            output.json(
-                                {
-                                    "type": event.event_type,
-                                    "context_id": event.context_id,
-                                    "task_id": event.task_id,
-                                    "state": event.state.value if event.state else None,
-                                    "text": event.text,
-                                }
-                            )
-                        else:
-                            if event.event_type == "status":
-                                output.state(
-                                    "Status",
-                                    event.state.value if event.state else "unknown",
-                                )
-                            elif event.text:
-                                output.line(event.text)
+                async for event in service.resubscribe(task_id):
+                    if event.event_type == "status":
+                        output.state(
+                            "Status",
+                            event.state.value if event.state else "unknown",
+                        )
+                    elif event.text:
+                        output.line(event.text)
 
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_resubscribe())
 
 
 def _format_task_result(result: TaskResult, output: Output) -> None:
     """Format and display a task result."""
-    if output.mode.value == "json":
-        output.json(result.raw)
-        return
-
     output.blank()
     output.field("Task ID", result.task_id, dim_value=True)
     output.state("State", result.state.value)
@@ -589,54 +544,38 @@ def task_notification() -> None:
 @click.argument("task_id")
 @click.option("--url", "-u", required=True, help="Webhook URL to receive notifications")
 @click.option("--token", "-t", help="Authentication token for the webhook")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
 def notification_set(
-    ctx: click.Context,
     agent_url: str,
     task_id: str,
     url: str,
     token: Optional[str],
-    output: str,
 ) -> None:
     """Configure a push notification webhook for a task."""
     log.info("Setting push config for task %s at %s", task_id, agent_url)
-    mode = get_mode(ctx, output)
 
     async def do_set() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    is_json = output.mode.value == "json"
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
 
-                    if not is_json:
-                        output.dim(f"Setting notification config for task {task_id}...")
+                output.dim(f"Setting notification config for task {task_id}...")
 
-                    config = await service.set_push_config(task_id, url, token)
+                config = await service.set_push_config(task_id, url, token)
 
-                    if is_json:
-                        output.json(config.model_dump())
-                    else:
-                        output.success("Push notification config set")
-                        output.field("Task ID", config.task_id)
-                        if config.push_notification_config:
-                            pnc = config.push_notification_config
-                            output.field("URL", pnc.url)
-                            if pnc.token:
-                                output.field("Token", f"{pnc.token[:20]}...")
-                            if pnc.id:
-                                output.field("Config ID", pnc.id)
+                output.success("Push notification config set")
+                output.field("Task ID", config.task_id)
+                if config.push_notification_config:
+                    pnc = config.push_notification_config
+                    output.field("URL", pnc.url)
+                    if pnc.token:
+                        output.field("Token", f"{pnc.token[:20]}...")
+                    if pnc.id:
+                        output.field("Config ID", pnc.id)
 
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_set())
 
@@ -657,120 +596,62 @@ def card() -> None:
 @click.option(
     "--authenticated", "-a", is_flag=True, help="Request authenticated extended card"
 )
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def card_get(
-    ctx: click.Context, agent_url: str, authenticated: bool, output: str
-) -> None:
+def card_get(agent_url: str, authenticated: bool) -> None:
     """Retrieve an agent's card."""
     log.info("Fetching agent card from %s", agent_url)
-    mode = get_mode(ctx, output)
 
     async def do_get() -> None:
-        with get_output_context(mode) as output:
-            try:
-                async with build_http_client() as http_client:
-                    service = A2AService(http_client, agent_url)
-                    card_data = await service.get_card()
-                    log.info("Retrieved card for agent: %s", card_data.name)
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+                card_data = await service.get_card()
+                log.info("Retrieved card for agent: %s", card_data.name)
 
-                    if output.mode.value == "json":
-                        output.json(card_data.model_dump())
-                    else:
-                        _format_agent_card(card_data, output)
+                _format_agent_card(card_data, output)
 
-            except Exception as e:
-                _handle_client_error(e, agent_url, output)
-                raise click.Abort()
+        except Exception as e:
+            _handle_client_error(e, agent_url, output)
+            raise click.Abort()
 
     asyncio.run(do_get())
 
 
 def _format_agent_card(card_data: object, output: Output) -> None:
-    """Format and display an agent card."""
-
+    """Format and display an agent card as JSON."""
     card_dict: dict[str, Any]
     if isinstance(card_data, AgentCard):
-        card_dict = card_data.model_dump()
+        card_dict = card_data.model_dump(exclude_none=True)
     else:
         card_dict = {}
-    name = card_dict.pop("name", "Unknown Agent")
-    description = card_dict.pop("description", "")
-
-    output.header(name)
-    if description:
-        output.line(description)
-
-    output.blank()
-    for key, value in card_dict.items():
-        if key.startswith("_"):
-            continue
-        formatted = format_value(value)
-        if formatted:
-            field_name = format_field_name(key)
-            if "\n" in formatted:
-                output.line(f"{field_name}:")
-                output.line(formatted)
-            else:
-                output.field(field_name, formatted)
+    output.line(json.dumps(card_dict, indent=2))
 
 
 @card.command("validate")
 @click.argument("source")
-@click.option(
-    "--output",
-    "-o",
-    type=click.Choice(["json", "text"]),
-    default="text",
-    help="Output format",
-)
-@click.pass_context
-def card_validate(ctx: click.Context, source: str, output: str) -> None:
+def card_validate(source: str) -> None:
     """Validate an agent card from URL or file."""
     log.info("Validating agent card from %s", source)
     is_url = source.startswith(("http://", "https://"))
-    mode = get_mode(ctx, output)
 
     async def do_validate() -> None:
-        with get_output_context(mode) as output:
-            if is_url:
-                async with build_http_client() as http_client:
-                    result = await validate_agent_card_from_url(source, http_client)
-            else:
-                result = validate_agent_card_from_file(source)
+        output = Output()
+        if is_url:
+            async with build_http_client() as http_client:
+                result = await validate_agent_card_from_url(source, http_client)
+        else:
+            result = validate_agent_card_from_file(source)
 
-            _format_validation_result(result, output)
+        _format_validation_result(result, output)
 
-            if not result.valid:
-                raise SystemExit(1)
+        if not result.valid:
+            raise SystemExit(1)
 
     asyncio.run(do_validate())
 
 
 def _format_validation_result(result: ValidationResult, output: Output) -> None:
     """Format and display validation result."""
-    if output.mode.value == "json":
-        output.json(
-            {
-                "valid": result.valid,
-                "source": result.source,
-                "sourceType": result.source_type.value,
-                "agentName": result.agent_name,
-                "protocolVersion": result.protocol_version,
-                "issues": [
-                    {"field": i.field_name, "message": i.message, "type": i.issue_type}
-                    for i in result.issues
-                ],
-            }
-        )
-        return
-
     if result.valid:
         output.success("Valid Agent Card")
         output.field("Agent", result.agent_name)
@@ -799,10 +680,34 @@ def server() -> None:
 @server.command("agent")
 @click.option("--host", default="0.0.0.0", help="Host to bind to", show_default=True)
 @click.option("--port", default=8000, help="Port to bind to", show_default=True)
-def server_agent(host: str, port: int) -> None:
+@click.option("--auth/--no-auth", default=False, help="Require API key authentication")
+@click.option(
+    "--api-key",
+    default=None,
+    help="Specific API key to use (auto-generated if not set)",
+)
+@click.option(
+    "--model",
+    "-m",
+    default=None,
+    help="Model to use (e.g., 'llama3.2:1b', 'qwen3', 'gemini-2.0-flash')",
+)
+def server_agent(
+    host: str,
+    port: int,
+    auth: bool,
+    api_key: Optional[str],
+    model: Optional[str],
+) -> None:
     """Start a local A2A agent server."""
     log.info("Starting A2A server on %s:%d", host, port)
-    run_server(host, port)
+    run_server(
+        host=host,
+        port=port,
+        require_auth=auth,
+        api_key=api_key,
+        model=model,
+    )
 
 
 @server.command("push")
@@ -826,62 +731,136 @@ def session() -> None:
 
 
 @session.command("list")
-@click.pass_context
-def session_list(ctx: click.Context) -> None:
+def session_list() -> None:
     """List all saved sessions."""
-    mode = "raw" if ctx.obj.get("raw") else "text"
+    output = Output()
+    store = get_session_store()
+    sessions = store.list_all()
 
-    with get_output_context(mode) as output:
-        store = get_session_store()
-        sessions = store.list_all()
+    if not sessions:
+        output.dim("No saved sessions")
+        return
 
-        if not sessions:
-            output.dim("No saved sessions")
-            return
-
-        output.header(f"Saved Sessions ({len(sessions)})")
-        for s in sessions:
-            output.blank()
-            output.subheader(s.agent_url)
-            if s.context_id:
-                output.field("Context ID", s.context_id, dim_value=True)
-            if s.task_id:
-                output.field("Task ID", s.task_id, dim_value=True)
+    output.header(f"Saved Sessions ({len(sessions)})")
+    for s in sessions:
+        output.blank()
+        output.subheader(s.agent_url)
+        if s.context_id:
+            output.field("Context ID", s.context_id, dim_value=True)
+        if s.task_id:
+            output.field("Task ID", s.task_id, dim_value=True)
 
 
 @session.command("show")
 @click.argument("agent_url")
-@click.pass_context
-def session_show(ctx: click.Context, agent_url: str) -> None:
+def session_show(agent_url: str) -> None:
     """Display session state for an agent."""
-    mode = "raw" if ctx.obj.get("raw") else "text"
-
-    with get_output_context(mode) as output:
-        s = get_session(agent_url)
-        output.header(f"Session for {agent_url}")
-        output.field("Context ID", s.context_id or "none", dim_value=not s.context_id)
-        output.field("Task ID", s.task_id or "none", dim_value=not s.task_id)
+    output = Output()
+    s = get_session(agent_url)
+    output.header(f"Session for {agent_url}")
+    output.field("Context ID", s.context_id or "none", dim_value=not s.context_id)
+    output.field("Task ID", s.task_id or "none", dim_value=not s.task_id)
 
 
 @session.command("clear")
 @click.argument("agent_url", required=False)
 @click.option("--all", "-a", "clear_all", is_flag=True, help="Clear all sessions")
-@click.pass_context
-def session_clear(
-    ctx: click.Context, agent_url: Optional[str], clear_all: bool
-) -> None:
+def session_clear(agent_url: Optional[str], clear_all: bool) -> None:
     """Clear saved session state."""
-    mode = "raw" if ctx.obj.get("raw") else "text"
+    output = Output()
+    if clear_all:
+        clear_session()
+        output.success("Cleared all sessions")
+    elif agent_url:
+        clear_session(agent_url)
+        output.success(f"Cleared session for {agent_url}")
+    else:
+        output.warning("Provide AGENT_URL or use --all to clear sessions")
 
-    with get_output_context(mode) as output:
-        if clear_all:
-            clear_session()
-            output.success("Cleared all sessions")
-        elif agent_url:
-            clear_session(agent_url)
-            output.success(f"Cleared session for {agent_url}")
-        else:
-            output.warning("Provide AGENT_URL or use --all to clear sessions")
+
+# ============================================================================
+# Auth Commands
+# ============================================================================
+
+
+@cli.group()
+def auth() -> None:
+    """Manage authentication credentials for agents."""
+    pass
+
+
+@auth.command("set")
+@click.argument("agent_url")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token for authentication")
+@click.option("--api-key", "-k", "api_key", help="API key for authentication")
+@click.option(
+    "--api-key-header",
+    default="X-API-Key",
+    help="Header name for API key (default: X-API-Key)",
+)
+def auth_set(
+    agent_url: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
+    api_key_header: str,
+) -> None:
+    """Set authentication credentials for an agent.
+
+    Provide either --bearer or --api-key (not both).
+    """
+    output = Output()
+    if bearer_token and api_key:
+        output.error("Provide either --bearer or --api-key, not both")
+        raise click.Abort()
+
+    if not bearer_token and not api_key:
+        output.error("Provide --bearer or --api-key")
+        raise click.Abort()
+
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+        auth_type_display = "Bearer token"
+    else:
+        credentials = create_api_key_auth(api_key or "", header_name=api_key_header)
+        auth_type_display = f"API key (header: {api_key_header})"
+
+    set_credentials(agent_url, credentials)
+
+    output.success(f"Set {auth_type_display} for {agent_url}")
+
+
+@auth.command("show")
+@click.argument("agent_url")
+def auth_show(agent_url: str) -> None:
+    """Show authentication credentials for an agent."""
+    output = Output()
+    credentials = get_credentials(agent_url)
+
+    output.header(f"Auth for {agent_url}")
+
+    if not credentials:
+        output.dim("No credentials configured")
+        return
+
+    output.field("Type", credentials.auth_type.value)
+    masked_value = (
+        f"{credentials.value[:4]}...{credentials.value[-4:]}"
+        if len(credentials.value) > 8
+        else "****"
+    )
+    output.field("Value", masked_value)
+
+    if credentials.auth_type == AuthType.API_KEY:
+        output.field("Header", credentials.header_name or "X-API-Key")
+
+
+@auth.command("clear")
+@click.argument("agent_url")
+def auth_clear(agent_url: str) -> None:
+    """Clear authentication credentials for an agent."""
+    output = Output()
+    clear_credentials(agent_url)
+    output.success(f"Cleared credentials for {agent_url}")
 
 
 # ============================================================================

@@ -1,15 +1,13 @@
 Screen {
-    padding: 2 4;
+    padding: 1 2;
 }
 
 #root-container {
     border: round $primary;
     height: 1fr;
     layout: horizontal;
-    padding: 1 2;
+    padding: 0 1;
     background: $background;
-    border-title-color: $text-muted;
-    border-title-style: bold;
 }
 
 #left-pane {
@@ -28,15 +26,13 @@ Screen {
 /* Panels - Cockpit Style */
 .panel {
     border: round $secondary; /* Monochromatic border */
-    border-title-color: $accent;
     background: $background; /* Blend into screen, distinct only by border */
-    padding: 1 2;
+    padding: 0 1;
 }
 
 /* Highlight panel when focused */
 .panel:focus-within {
     border: round $accent;
-    border-title-color: $accent;
 }
 
 #contact-container {
@@ -49,6 +45,7 @@ Screen {
 
 #messages-container {
     height: 1fr;
+    padding: 0 1;
 }
 
 #input-container {
@@ -56,23 +53,64 @@ Screen {
 }
 
 /* Contact Panel Internal */
-Label.section-label {
-    color: $text-muted;
+#contact-tabs {
+    height: auto;
+}
+
+#contact-tabs ContentSwitcher {
+    height: auto;
+}
+
+#contact-tabs TabPane {
+    height: auto;
+}
+
+#server-content {
+    height: auto;
+}
+
+#help-content {
+    height: auto;
+}
+
+#version-info {
+    height: auto;
     margin-bottom: 1;
+}
+
+.link-label {
+    height: auto;
+    margin-top: 1;
+}
+
+#report-bug-link,
+#sponsor-link,
+#discuss-link {
+    height: auto;
+    color: $accent;
+    margin-left: 2;
+}
+
+#report-bug-link:hover,
+#sponsor-link:hover,
+#discuss-link:hover {
+    text-style: bold underline;
+}
+
+/* Input row containers - button appears inside input */
+#url-row,
+#input-row {
+    height: 3;
+    background: $surface;
+    align: left middle;
 }
 
 #agent-url {
-    margin-bottom: 1;
-    background: $surface;
+    background: transparent;
     border: none;
-    height: 3; /* Standard height for input */
-    padding: 0 1;
-    content-align: left middle; /* Vertically center text */
-}
-
-.contact-buttons {
-    layout: horizontal;
-    height: auto;
+    height: 3;
+    padding: 1 1;
+    width: 1fr;
 }
 
 /* Buttons - Flat & Thinner */
@@ -91,39 +129,13 @@ Button:hover {
     color: $background;
 }
 
-.contact-buttons Button {
-    width: 1fr;
-    margin-right: 1;
-}
-
-.contact-buttons Button:last-of-type {
-    margin-right: 0;
-}
-
-#connect-btn {
-    color: $accent;
-}
-#disconnect-btn {
-    color: $error;
-}
-
 /* Agent Card Internal */
-#agent-card-tabs {
+#placeholder {
     height: 1fr;
-}
-
-#agent-card-tabs ContentSwitcher {
-    height: 1fr;
-}
-
-#agent-card-tabs TabPane {
-    height: 1fr;
-    overflow-y: auto;
-}
-
-#agent-info {
-    height: auto;
-    color: $text;
+    width: 1fr;
+    hatch: cross $secondary 30%;
+    content-align: center middle;
+    color: $text-muted;
 }
 
 #raw-scroll {
@@ -137,26 +149,36 @@ Button:hover {
 }
 
 /* Input Panel Internal */
-#input-row {
-    height: auto;
-    align: left middle;
-}
-
 #message-input {
     border: none;
-    height: 3; /* Match other inputs */
-    padding: 0 1;
-    background: $background;
+    height: 3;
+    padding: 1 1;
+    background: transparent;
     width: 1fr;
-    content-align: left middle;
 }
 
-#send-btn {
+/* Inline buttons */
+#send-btn,
+#connect-btn {
     width: auto;
     min-width: 8;
-    margin-left: 1;
+    height: 3;
     background: $primary;
     color: $background;
+}
+
+/* Messages Tabs */
+#messages-tabs {
+    height: 1fr;
+}
+
+#messages-tabs ContentSwitcher {
+    height: 1fr;
+}
+
+#messages-tabs TabPane {
+    height: 1fr;
+    overflow-y: auto;
 }
 
 /* Chat Panel */
@@ -165,47 +187,91 @@ Button:hover {
     scrollbar-size: 1 1;
 }
 
-Message {
+Message,
+AgentMessage {
     margin-bottom: 1;
     height: auto;
 }
 
-/* Custom Footer */
-Footer {
+Message.message-user {
+    color: $primary;
+}
+
+Message.message-system {
+    color: $text-muted;
+}
+
+AgentMessage {
+    color: $success;
+}
+
+/* Logs Panel - uses Textual's Log widget */
+#logs-panel {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    scrollbar-size: 1 1;
+    scrollbar-gutter: stable;
+    background: $background;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+/* Auth Panel */
+#auth-panel {
+    height: auto;
+    padding: 1;
+}
+
+#auth-panel Label {
+    margin-bottom: 0;
+}
+
+#auth-panel RadioSet {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#auth-panel Input {
+    margin-bottom: 1;
+}
+
+.auth-fields {
     height: auto;
     margin-top: 1;
-    border: round $primary;
-    background: $background;
-    border-title-color: $text-muted;
-    border-title-style: bold;
-    padding: 0 1;
 }
 
-Footer .footer-buttons {
-    height: auto;
-    align: left middle;
+.auth-fields.hidden {
+    display: none;
 }
 
-Footer Button {
-    height: 1;
-    border: none;
-    margin-right: 1;
-    background: transparent;
-    color: $text-muted;
-    min-width: 0;
-    padding: 0 1;
-}
 
-Footer Button:hover {
-    color: $text;
-    background: $primary;
-}
 
 /* Focusable panel containers */
 AgentCardPanel:focus {
     border: round $accent;
 }
 
-MessagesPanel:focus {
+TabbedMessagesPanel:focus {
     border: round $accent;
+}
+
+/* Footer - unobtrusive dimmed style */
+Footer {
+    background: transparent;
+    color: $text-muted;
+}
+
+Footer > FooterKey {
+    background: transparent;
+    color: $text-muted;
+}
+
+Footer > FooterKey > .footer-key--key {
+    background: $surface;
+    color: $text-muted;
+}
+
+Footer > FooterKey > .footer-key--description {
+    color: $text-muted;
 }

@@ -5,25 +5,27 @@ Provides the Textual-based terminal interface for agent interaction.
 
 import logging
 import uuid
+from collections.abc import Iterable
 from importlib.metadata import version
 from typing import Any
 
 import httpx
 from a2a.types import AgentCard
-from textual import on
-from textual.app import App, ComposeResult
+from textual import on, work
+from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.logging import TextualHandler
-from textual.widgets import Button, Input
+from textual.screen import Screen
+from textual.widgets import Button, Footer, Input
 
+from a2a_handler.common import get_theme, install_tui_log_handler, save_theme
 from a2a_handler.service import A2AService
 from a2a_handler.tui.components import (
     AgentCardPanel,
     ContactPanel,
-    Footer,
     InputPanel,
-    MessagesPanel,
+    TabbedMessagesPanel,
 )
 
 __version__ = version("a2a-handler")
@@ -51,9 +53,24 @@ class HandlerTUI(App[Any]):
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", show=True),
-        Binding("ctrl+c", "clear_chat", "Clear", show=True),
-        Binding("ctrl+p", "command_palette", "Palette", show=True),
+        Binding("/", "command_palette", "Palette", show=True),
+        Binding("ctrl+m", "toggle_maximize", "Maximize", show=True),
     ]
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Show maximize binding only for maximizable panels."""
+        if action == "toggle_maximize":
+            focused = self.focused
+            if focused is None:
+                return False
+            for panel in (
+                self.query_one("#messages-container", TabbedMessagesPanel),
+                self.query_one("#agent-card-container", AgentCardPanel),
+            ):
+                if focused is panel or panel in focused.ancestors:
+                    return True
+            return False
+        return True
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -62,6 +79,7 @@ class HandlerTUI(App[Any]):
         self.current_context_id: str | None = None
         self.current_agent_url: str | None = None
         self._agent_service: A2AService | None = None
+        self._is_maximized: bool = False
 
     def compose(self) -> ComposeResult:
         with Container(id="root-container"):
@@ -70,43 +88,42 @@ class HandlerTUI(App[Any]):
                 yield AgentCardPanel(id="agent-card-container", classes="panel")
 
             with Vertical(id="right-pane"):
-                yield MessagesPanel(id="messages-container", classes="panel")
+                yield TabbedMessagesPanel(id="messages-container", classes="panel")
                 yield InputPanel(id="input-container", classes="panel")
-
-        yield Footer(id="footer")
+        yield Footer(show_command_palette=False)
 
     async def on_mount(self) -> None:
         logger.info("TUI application starting")
         self.http_client = build_http_client()
-        self.theme = "gruvbox"
+        self.theme = get_theme()
 
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [red]●[/red] Disconnected"
-        )
+        tui_log_handler = install_tui_log_handler(level=logging.DEBUG)
+        tui_log_handler.set_callback(self._on_log_line)
 
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+        messages_panel.load_logs(tui_log_handler.get_lines())
+
+        contact_panel = self.query_one("#contact-container", ContactPanel)
+        contact_panel.set_version(__version__)
+
         messages_panel.add_system_message(
             "Welcome! Connect to an agent to start chatting."
         )
 
+    def _on_log_line(self, line: str) -> None:
+        """Callback for new log lines."""
+        try:
+            messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+            messages_panel.add_log(line)
+        except Exception:
+            pass
+
     def watch_theme(self, new_theme: str) -> None:
         """Called when the app theme changes."""
         logger.debug("Theme changed to: %s", new_theme)
+        save_theme(new_theme)
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.refresh_theme()
-
-    @on(Button.Pressed, "#footer-quit")
-    async def handle_quit_button(self) -> None:
-        await self.action_quit()
-
-    @on(Button.Pressed, "#footer-clear")
-    async def handle_clear_button(self) -> None:
-        await self.action_clear_chat()
-
-    @on(Button.Pressed, "#footer-palette")
-    def handle_palette_button(self) -> None:
-        self.action_command_palette()
 
     async def _connect_to_agent(self, agent_url: str) -> AgentCard:
         if not self.http_client:
@@ -117,31 +134,11 @@ class HandlerTUI(App[Any]):
         return await self._agent_service.get_card()
 
     def _update_ui_for_connected_state(self, agent_card: AgentCard) -> None:
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [green]●[/green] Connected: {agent_card.name}"
-        )
-
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.update_card(agent_card)
 
-        contact_panel = self.query_one("#contact-container", ContactPanel)
-        contact_panel.set_connected(True)
-
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.update_message_count()
-
-    def _update_ui_for_disconnected_state(self) -> None:
-        root_container = self.query_one("#root-container", Container)
-        root_container.border_title = (
-            f"Handler v{__version__} [red]●[/red] Disconnected"
-        )
-
-        agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
-        agent_card_panel.update_card(None)
-
-        contact_panel = self.query_one("#contact-container", ContactPanel)
-        contact_panel.set_connected(False)
 
     @on(Button.Pressed, "#connect-btn")
     async def handle_connect_button(self) -> None:
@@ -150,11 +147,11 @@ class HandlerTUI(App[Any]):
 
         if not agent_url:
             logger.warning("Connect attempted with empty URL")
-            messages_panel = self.query_one("#messages-container", MessagesPanel)
-            messages_panel.add_system_message("✗ Please enter an agent URL")
+            messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+            messages_panel.add_system_message("Please enter an agent URL")
             return
 
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.add_system_message(f"Connecting to {agent_url}...")
 
         try:
@@ -167,48 +164,39 @@ class HandlerTUI(App[Any]):
             logger.info("Successfully connected to %s", agent_card.name)
 
             self._update_ui_for_connected_state(agent_card)
-            messages_panel.add_system_message(f"✓ Connected to {agent_card.name}")
+            messages_panel.add_system_message(f"Connected to {agent_card.name}")
 
             agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
             agent_card_panel.focus()
 
         except Exception as error:
             logger.error("Connection failed: %s", error, exc_info=True)
-            messages_panel.add_system_message(f"✗ Connection failed: {error!s}")
-
-    @on(Button.Pressed, "#disconnect-btn")
-    def handle_disconnect_button(self) -> None:
-        logger.info("Disconnecting from %s", self.current_agent_url)
-        self.current_agent_card = None
-        self.current_agent_url = None
-        self._agent_service = None
-
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
-        messages_panel.add_system_message("Disconnected")
-
-        self._update_ui_for_disconnected_state()
+            messages_panel.add_system_message(f"Connection failed: {error!s}")
+            agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+            agent_card_panel.update_card(None)
 
     @on(Input.Submitted, "#message-input")
-    async def handle_message_submit(self) -> None:
+    def handle_message_submit(self) -> None:
         if self.current_agent_url:
-            await self._send_message()
+            self._send_message()
         else:
-            messages_panel = self.query_one("#messages-container", MessagesPanel)
-            messages_panel.add_system_message("✗ Not connected to an agent")
+            messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+            messages_panel.add_system_message("Not connected to an agent")
 
     @on(Button.Pressed, "#send-btn")
-    async def handle_send_button(self) -> None:
+    def handle_send_button(self) -> None:
         if self.current_agent_url:
-            await self._send_message()
+            self._send_message()
         else:
-            messages_panel = self.query_one("#messages-container", MessagesPanel)
-            messages_panel.add_system_message("✗ Not connected to an agent")
+            messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+            messages_panel.add_system_message("Not connected to an agent")
 
+    @work(exclusive=True)
     async def _send_message(self) -> None:
         if not self.current_agent_url or not self._agent_service:
             logger.warning("Attempted to send message without connection")
-            messages_panel = self.query_one("#messages-container", MessagesPanel)
-            messages_panel.add_system_message("✗ Not connected to an agent")
+            messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
+            messages_panel.add_system_message("Not connected to an agent")
             return
 
         input_panel = self.query_one("#input-container", InputPanel)
@@ -217,27 +205,69 @@ class HandlerTUI(App[Any]):
         if not message_text:
             return
 
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
+        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.add_message("user", message_text)
 
         try:
             logger.info("Sending message: %s", message_text[:50])
+
+            credentials = messages_panel.get_auth_credentials()
+            if credentials:
+                self._agent_service.set_credentials(credentials)
 
             send_result = await self._agent_service.send(
                 message_text,
                 context_id=self.current_context_id,
             )
 
-            response_text = send_result.text or "No text in response"
-            messages_panel.add_message("agent", response_text)
+            if send_result.context_id:
+                self.current_context_id = send_result.context_id
+
+            logger.info(
+                "Response received - task_id=%s, state=%s, has_text=%s, has_task=%s, has_message=%s",
+                send_result.task_id,
+                send_result.state,
+                bool(send_result.text),
+                send_result.task is not None,
+                send_result.message is not None,
+            )
+            if send_result.task:
+                logger.debug("Raw response: %s", send_result.task.model_dump())
+            elif send_result.message:
+                logger.debug("Raw response: %s", send_result.message.model_dump())
+
+            messages_panel.add_agent_message(send_result)
 
         except Exception as error:
             logger.error("Error sending message: %s", error, exc_info=True)
-            messages_panel.add_system_message(f"✗ Error: {error!s}")
+            messages_panel.add_system_message(f"Error: {error!s}")
 
-    async def action_clear_chat(self) -> None:
-        messages_panel = self.query_one("#messages-container", MessagesPanel)
-        await messages_panel.clear()
+    def action_toggle_maximize(self) -> None:
+        """Toggle maximize for the focused panel."""
+        if self._is_maximized:
+            self.screen.minimize()
+            self._is_maximized = False
+            return
+
+        focused = self.focused
+        if focused is None:
+            return
+
+        for panel in (
+            self.query_one("#messages-container", TabbedMessagesPanel),
+            self.query_one("#agent-card-container", AgentCardPanel),
+        ):
+            if focused is panel or panel in focused.ancestors:
+                self.screen.maximize(panel)
+                self._is_maximized = True
+                return
+
+    def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
+        """Filter out maximize/minimize commands from the command palette."""
+        for command in super().get_system_commands(screen):
+            if command.title.lower() in ("maximize", "minimize"):
+                continue
+            yield command
 
     async def on_unmount(self) -> None:
         logger.info("Shutting down TUI application")

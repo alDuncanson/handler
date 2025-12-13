@@ -1,16 +1,19 @@
 """TUI component widgets for the Handler application."""
 
+from .auth import AuthPanel
 from .card import AgentCardPanel
 from .contact import ContactPanel
-from .footer import Footer
 from .input import InputPanel
-from .messages import Message, MessagesPanel
+from .logs import LogsPanel
+from .messages import Message, MessagesPanel, TabbedMessagesPanel
 
 __all__ = [
     "AgentCardPanel",
+    "AuthPanel",
     "ContactPanel",
-    "Footer",
     "InputPanel",
+    "LogsPanel",
     "Message",
     "MessagesPanel",
+    "TabbedMessagesPanel",
 ]

@@ -12,14 +12,14 @@ logger = get_logger(__name__)
 class InputPanel(Container):
     """Panel for message input."""
 
+    ALLOW_MAXIMIZE = False
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="input-row"):
             yield Input(placeholder="Type your message...", id="message-input")
             yield Button("SEND", id="send-btn")
 
     def on_mount(self) -> None:
-        self.border_title = "INPUT"
-        self.border_subtitle = "PRESS ENTER TO SEND"
         self.query_one("#send-btn", Button).can_focus = False
         logger.debug("Input panel mounted")
 
