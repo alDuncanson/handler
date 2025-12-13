@@ -12,9 +12,9 @@ from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
 
-REPORT_BUG_URL = "https://dub.sh/handler-issue"
-SPONSOR_URL = "https://dub.sh/sponsor-al"
-DISCUSS_URL = "https://dub.sh/handler-discussion"
+REPORT_BUG_URL = "https://github.com/alDuncanson/Handler/issues"
+SPONSOR_URL = "https://github.com/sponsors/alDuncanson"
+DISCUSS_URL = "https://github.com/alDuncanson/Handler/discussions"
 
 
 class UrlRow(Horizontal):
