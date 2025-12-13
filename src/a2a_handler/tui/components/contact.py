@@ -71,18 +71,16 @@ class ContactPanel(Container):
                     ),
                     id="server-content",
                 )
-            with TabPane("About", id="about-tab"):
+            with TabPane("Help", id="help-tab"):
                 yield Vertical(
                     Static(id="version-info"),
                     Static("[dim]b[/dim] Report a bug:", classes="link-label"),
                     Link(REPORT_BUG_URL, url=REPORT_BUG_URL, id="report-bug-link"),
                     Static("[dim]s[/dim] Sponsor or donate:", classes="link-label"),
                     Link(SPONSOR_URL, url=SPONSOR_URL, id="sponsor-link"),
-                    Static(
-                        "[dim]d[/dim] Discuss a feature idea:", classes="link-label"
-                    ),
+                    Static("[dim]d[/dim] Start a discussion:", classes="link-label"),
                     Link(DISCUSS_URL, url=DISCUSS_URL, id="discuss-link"),
-                    id="about-content",
+                    id="help-content",
                 )
 
     def on_mount(self) -> None:
@@ -129,17 +127,17 @@ class ContactPanel(Container):
         except Exception:
             pass
 
-    def _is_about_tab_active(self) -> bool:
-        """Check if the About tab is currently active."""
+    def _is_help_tab_active(self) -> bool:
+        """Check if the Help tab is currently active."""
         try:
             tabs = self.query_one("#contact-tabs", TabbedContent)
-            return tabs.active == "about-tab"
+            return tabs.active == "help-tab"
         except Exception:
             return False
 
     def action_open_bug_report(self) -> None:
         """Open the bug report URL."""
-        if not self._is_about_tab_active():
+        if not self._is_help_tab_active():
             return
         import webbrowser
 
@@ -147,7 +145,7 @@ class ContactPanel(Container):
 
     def action_open_sponsor(self) -> None:
         """Open the sponsor URL."""
-        if not self._is_about_tab_active():
+        if not self._is_help_tab_active():
             return
         import webbrowser
 
@@ -155,7 +153,7 @@ class ContactPanel(Container):
 
     def action_open_discuss(self) -> None:
         """Open the discuss URL."""
-        if not self._is_about_tab_active():
+        if not self._is_help_tab_active():
             return
         import webbrowser
 
