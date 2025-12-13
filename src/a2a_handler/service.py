@@ -4,8 +4,8 @@ Provides a unified interface for A2A operations, shared between the CLI and TUI.
 """
 
 import uuid
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from dataclasses import dataclass
+from typing import AsyncIterator
 
 import httpx
 from a2a.client import A2ACardResolver, Client, ClientConfig, ClientFactory
@@ -41,15 +41,40 @@ TERMINAL_TASK_STATES = {
 
 @dataclass
 class SendResult:
-    """Result from sending a message to an agent."""
+    """Result from sending a message to an agent.
+
+    This is a Handler convenience wrapper around SDK types (Task, Message).
+    All A2A protocol data is accessible via the `task` and `message` fields.
+    """
 
     task: Task | None = None
     message: Message | None = None
-    context_id: str | None = None
-    task_id: str | None = None
-    state: TaskState | None = None
     text: str = ""
-    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def context_id(self) -> str | None:
+        """Get context_id from the underlying SDK type."""
+        if self.task:
+            return self.task.context_id
+        if self.message:
+            return self.message.context_id
+        return None
+
+    @property
+    def task_id(self) -> str | None:
+        """Get task_id from the underlying SDK type."""
+        if self.task:
+            return self.task.id
+        if self.message:
+            return self.message.task_id
+        return None
+
+    @property
+    def state(self) -> TaskState | None:
+        """Get task state from the underlying SDK type."""
+        if self.task and self.task.status:
+            return self.task.status.state
+        return None
 
     @property
     def is_complete(self) -> bool:
@@ -69,29 +94,80 @@ class SendResult:
 
 @dataclass
 class StreamEvent:
-    """A single event from a streaming response."""
+    """A single event from a streaming response.
+
+    This is a Handler convenience wrapper around SDK streaming event types.
+    The original SDK event is accessible via `status` or `artifact` fields.
+    """
 
     event_type: str
     task: Task | None = None
     message: Message | None = None
     status: TaskStatusUpdateEvent | None = None
     artifact: TaskArtifactUpdateEvent | None = None
-    context_id: str | None = None
-    task_id: str | None = None
-    state: TaskState | None = None
     text: str = ""
+
+    @property
+    def context_id(self) -> str | None:
+        """Get context_id from the underlying SDK type."""
+        if self.task:
+            return self.task.context_id
+        if self.message:
+            return self.message.context_id
+        if self.status:
+            return self.status.context_id
+        if self.artifact:
+            return self.artifact.context_id
+        return None
+
+    @property
+    def task_id(self) -> str | None:
+        """Get task_id from the underlying SDK type."""
+        if self.task:
+            return self.task.id
+        if self.message:
+            return self.message.task_id
+        if self.status:
+            return self.status.task_id
+        if self.artifact:
+            return self.artifact.task_id
+        return None
+
+    @property
+    def state(self) -> TaskState | None:
+        """Get task state from the underlying SDK type."""
+        if self.task and self.task.status:
+            return self.task.status.state
+        if self.status and self.status.status:
+            return self.status.status.state
+        return None
 
 
 @dataclass
 class TaskResult:
-    """Result from a task operation (get/cancel)."""
+    """Result from a task operation (get/cancel).
+
+    This is a Handler convenience wrapper around the SDK Task type.
+    All A2A protocol data is accessible via the `task` field.
+    """
 
     task: Task
-    task_id: str
-    state: TaskState
-    context_id: str | None = None
     text: str = ""
-    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def task_id(self) -> str:
+        """Get task_id from the underlying SDK type."""
+        return self.task.id
+
+    @property
+    def context_id(self) -> str:
+        """Get context_id from the underlying SDK type."""
+        return self.task.context_id
+
+    @property
+    def state(self) -> TaskState:
+        """Get task state from the underlying SDK type."""
+        return self.task.status.state if self.task.status else TaskState.unknown
 
 
 def extract_text_from_message_parts(message_parts: list[Part] | None) -> str:
@@ -292,41 +368,22 @@ class A2AService:
         logger.info("Sending message: %s", truncated_message)
 
         result = SendResult()
-        last_received_task: Task | None = None
 
         async for event in client.send_message(user_message):
             if isinstance(event, Message):
                 result.message = event
-                result.context_id = event.context_id
-                result.task_id = event.task_id
                 result.text = extract_text_from_message_parts(event.parts)
                 logger.debug("Received message response")
             elif isinstance(event, tuple):
                 received_task, task_update = event
-                last_received_task = received_task
                 result.task = received_task
-                result.task_id = received_task.id
-                result.context_id = received_task.context_id
-                if received_task.status:
-                    result.state = received_task.status.state
                 logger.debug(
                     "Received task update: %s",
                     received_task.status.state if received_task.status else "unknown",
                 )
 
-        if last_received_task:
-            result.text = extract_text_from_task(last_received_task)
-            result.raw = (
-                last_received_task.model_dump()
-                if hasattr(last_received_task, "model_dump")
-                else {}
-            )
-        elif result.message:
-            result.raw = (
-                result.message.model_dump()
-                if hasattr(result.message, "model_dump")
-                else {}
-            )
+        if result.task:
+            result.text = extract_text_from_task(result.task)
 
         logger.info("Send complete: task_id=%s, state=%s", result.task_id, result.state)
         return result
@@ -360,8 +417,6 @@ class A2AService:
                 yield StreamEvent(
                     event_type="message",
                     message=event,
-                    context_id=event.context_id,
-                    task_id=event.task_id,
                     text=extract_text_from_message_parts(event.parts),
                 )
             elif isinstance(event, tuple):
@@ -374,9 +429,6 @@ class A2AService:
                         event_type="status",
                         task=received_task,
                         status=task_update,
-                        context_id=received_task.context_id,
-                        task_id=received_task.id,
-                        state=task_update.status.state if task_update.status else None,
                         text=status_message_text,
                     )
                 elif isinstance(task_update, TaskArtifactUpdateEvent):
@@ -389,22 +441,12 @@ class A2AService:
                         event_type="artifact",
                         task=received_task,
                         artifact=task_update,
-                        context_id=received_task.context_id,
-                        task_id=received_task.id,
-                        state=(
-                            received_task.status.state if received_task.status else None
-                        ),
                         text=artifact_text,
                     )
                 else:
                     yield StreamEvent(
                         event_type="task",
                         task=received_task,
-                        context_id=received_task.context_id,
-                        task_id=received_task.id,
-                        state=(
-                            received_task.status.state if received_task.status else None
-                        ),
                         text=extract_text_from_task(received_task),
                     )
 
@@ -431,11 +473,7 @@ class A2AService:
 
         return TaskResult(
             task=task,
-            task_id=task.id,
-            state=task.status.state if task.status else TaskState.unknown,
-            context_id=task.context_id,
             text=extract_text_from_task(task),
-            raw=task.model_dump() if hasattr(task, "model_dump") else {},
         )
 
     async def cancel_task(self, task_id: str) -> TaskResult:
@@ -456,11 +494,7 @@ class A2AService:
 
         return TaskResult(
             task=task,
-            task_id=task.id,
-            state=task.status.state if task.status else TaskState.unknown,
-            context_id=task.context_id,
             text=extract_text_from_task(task),
-            raw=task.model_dump() if hasattr(task, "model_dump") else {},
         )
 
     async def resubscribe(self, task_id: str) -> AsyncIterator[StreamEvent]:
@@ -484,9 +518,6 @@ class A2AService:
                     event_type="status",
                     task=received_task,
                     status=task_update,
-                    context_id=received_task.context_id,
-                    task_id=received_task.id,
-                    state=task_update.status.state if task_update.status else None,
                 )
             elif isinstance(task_update, TaskArtifactUpdateEvent):
                 artifact_text = ""
@@ -498,22 +529,12 @@ class A2AService:
                     event_type="artifact",
                     task=received_task,
                     artifact=task_update,
-                    context_id=received_task.context_id,
-                    task_id=received_task.id,
-                    state=(
-                        received_task.status.state if received_task.status else None
-                    ),
                     text=artifact_text,
                 )
             else:
                 yield StreamEvent(
                     event_type="task",
                     task=received_task,
-                    context_id=received_task.context_id,
-                    task_id=received_task.id,
-                    state=(
-                        received_task.status.state if received_task.status else None
-                    ),
                     text=extract_text_from_task(received_task),
                 )
 

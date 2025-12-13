@@ -217,8 +217,10 @@ class HandlerTUI(App[Any]):
                 send_result.task is not None,
                 send_result.message is not None,
             )
-            if send_result.raw:
-                logger.debug("Raw response: %s", send_result.raw)
+            if send_result.task:
+                logger.debug("Raw response: %s", send_result.task.model_dump())
+            elif send_result.message:
+                logger.debug("Raw response: %s", send_result.message.model_dump())
 
             messages_panel.add_agent_message(send_result)
 
