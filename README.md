@@ -19,7 +19,7 @@ Install with [uv](https://docs.astral.sh/uv/):
 uv tool install a2a-handler
 ```
 
-Or run directly without installing:
+Or run in an ephemeral environment:
 
 ```bash
 uvx --from a2a-handler handler
