@@ -83,13 +83,21 @@ Screen {
     color: $accent;
 }
 
-#agent-url {
-    margin-bottom: 1;
+/* Input row containers - button appears inside input */
+#url-row,
+#input-row {
+    height: 3;
     background: $surface;
+    align: left middle;
+}
+
+#agent-url {
+    background: transparent;
     border: none;
-    height: 3; /* Standard height for input */
+    height: 3;
     padding: 0 1;
-    content-align: left middle; /* Vertically center text */
+    width: 1fr;
+    content-align: left middle;
 }
 
 /* Buttons - Flat & Thinner */
@@ -106,10 +114,6 @@ Button {
 Button:hover {
     background: $primary;
     color: $background;
-}
-
-#connect-btn {
-    color: $accent;
 }
 
 /* Agent Card Internal */
@@ -155,24 +159,20 @@ Button:hover {
 }
 
 /* Input Panel Internal */
-#input-row {
-    height: auto;
-    align: left middle;
-}
-
 #message-input {
     border: none;
-    height: 3; /* Match other inputs */
+    height: 3;
     padding: 0 1;
-    background: $background;
+    background: transparent;
     width: 1fr;
     content-align: left middle;
 }
 
-#send-btn {
+/* Inline buttons */
+#send-btn,
+#connect-btn {
     width: auto;
     min-width: 8;
-    margin-left: 1;
     background: $primary;
     color: $background;
 }

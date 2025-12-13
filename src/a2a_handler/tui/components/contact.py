@@ -4,7 +4,8 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
+from textual.containers import Container, Horizontal, Vertical
+from textual.events import Enter, Leave
 from textual.widgets import Button, Input, Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
@@ -12,6 +13,16 @@ from a2a_handler.common import get_logger
 logger = get_logger(__name__)
 
 ISSUES_URL = "https://github.com/alDuncanson/handler/issues"
+
+
+class UrlRow(Horizontal):
+    """URL input row that shows button on hover."""
+
+    def on_enter(self, event: Enter) -> None:
+        self.query_one("#connect-btn", Button).display = True
+
+    def on_leave(self, event: Leave) -> None:
+        self.query_one("#connect-btn", Button).display = False
 
 
 class ContactPanel(Container):
@@ -37,12 +48,15 @@ class ContactPanel(Container):
         with TabbedContent(id="contact-tabs"):
             with TabPane("Server", id="server-tab"):
                 yield Vertical(
-                    Input(
-                        placeholder="http://localhost:8000",
-                        value="http://localhost:8000",
-                        id="agent-url",
+                    UrlRow(
+                        Input(
+                            placeholder="http://localhost:8000",
+                            value="http://localhost:8000",
+                            id="agent-url",
+                        ),
+                        Button("SEND", id="connect-btn"),
+                        id="url-row",
                     ),
-                    Button("CONNECT", id="connect-btn"),
                     id="server-content",
                 )
             with TabPane("About", id="about-tab"):
@@ -56,7 +70,9 @@ class ContactPanel(Container):
         for widget in self.query("TabbedContent, Tabs, Tab, TabPane"):
             widget.can_focus = False
         self.query_one("#agent-url", Input).can_focus = False
-        self.query_one("#connect-btn", Button).can_focus = False
+        btn = self.query_one("#connect-btn", Button)
+        btn.can_focus = False
+        btn.display = False
         self._update_version_display()
         logger.debug("Contact panel mounted")
 
