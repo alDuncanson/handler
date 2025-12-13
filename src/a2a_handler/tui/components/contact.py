@@ -6,15 +6,15 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.events import Enter, Leave
-from textual.widgets import Button, Input, Static, TabbedContent, TabPane, Tabs
+from textual.widgets import Button, Input, Link, Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
 
-REPORT_BUG_URL = "https://github.com/alDuncanson/Handler/issues"
-SPONSOR_URL = "https://github.com/sponsors/alDuncanson"
-DISCUSS_URL = "https://github.com/alDuncanson/Handler/discussions/new?category=ideas"
+REPORT_BUG_URL = "https://dub.sh/handler-issue"
+SPONSOR_URL = "https://dub.sh/sponsor-al"
+DISCUSS_URL = "https://dub.sh/handler-discussion"
 
 
 class UrlRow(Horizontal):
@@ -45,6 +45,9 @@ class ContactPanel(Container):
         Binding("left", "previous_tab", "Previous Tab", show=False),
         Binding("right", "next_tab", "Next Tab", show=False),
         Binding("enter", "focus_input", "Focus Input", show=False),
+        Binding("b", "open_bug_report", "Report Bug", show=False),
+        Binding("s", "open_sponsor", "Sponsor", show=False),
+        Binding("d", "open_discuss", "Discuss", show=False),
     ]
 
     can_focus = True
@@ -71,18 +74,14 @@ class ContactPanel(Container):
             with TabPane("About", id="about-tab"):
                 yield Vertical(
                     Static(id="version-info"),
+                    Static("[dim]b[/dim] Report a bug:", classes="link-label"),
+                    Link(REPORT_BUG_URL, url=REPORT_BUG_URL, id="report-bug-link"),
+                    Static("[dim]s[/dim] Sponsor or donate:", classes="link-label"),
+                    Link(SPONSOR_URL, url=SPONSOR_URL, id="sponsor-link"),
                     Static(
-                        f"Report a bug: [@click=open_url('{REPORT_BUG_URL}')]{REPORT_BUG_URL}[/]",
-                        id="report-bug-link",
+                        "[dim]d[/dim] Discuss a feature idea:", classes="link-label"
                     ),
-                    Static(
-                        f"Sponsor or donate: [@click=open_url('{SPONSOR_URL}')]{SPONSOR_URL}[/]",
-                        id="sponsor-link",
-                    ),
-                    Static(
-                        f"Discuss a feature idea: [@click=open_url('{DISCUSS_URL}')]{DISCUSS_URL}[/]",
-                        id="discuss-link",
-                    ),
+                    Link(DISCUSS_URL, url=DISCUSS_URL, id="discuss-link"),
                     id="about-content",
                 )
 
@@ -93,6 +92,8 @@ class ContactPanel(Container):
         btn = self.query_one("#connect-btn", Button)
         btn.can_focus = False
         btn.display = False
+        for link in self.query(Link):
+            link.can_focus = False
         self._update_version_display()
         logger.debug("Contact panel mounted")
 
@@ -112,12 +113,6 @@ class ContactPanel(Container):
         url_input = self.query_one("#agent-url", Input)
         url_input.can_focus = False
 
-    def action_open_url(self, url: str) -> None:
-        """Open the given URL in the browser."""
-        import webbrowser
-
-        webbrowser.open(url)
-
     def action_previous_tab(self) -> None:
         """Switch to the previous tab."""
         try:
@@ -133,6 +128,38 @@ class ContactPanel(Container):
             tabs_widget.action_next_tab()
         except Exception:
             pass
+
+    def _is_about_tab_active(self) -> bool:
+        """Check if the About tab is currently active."""
+        try:
+            tabs = self.query_one("#contact-tabs", TabbedContent)
+            return tabs.active == "about-tab"
+        except Exception:
+            return False
+
+    def action_open_bug_report(self) -> None:
+        """Open the bug report URL."""
+        if not self._is_about_tab_active():
+            return
+        import webbrowser
+
+        webbrowser.open(REPORT_BUG_URL)
+
+    def action_open_sponsor(self) -> None:
+        """Open the sponsor URL."""
+        if not self._is_about_tab_active():
+            return
+        import webbrowser
+
+        webbrowser.open(SPONSOR_URL)
+
+    def action_open_discuss(self) -> None:
+        """Open the discuss URL."""
+        if not self._is_about_tab_active():
+            return
+        import webbrowser
+
+        webbrowser.open(DISCUSS_URL)
 
     def set_version(self, version: str) -> None:
         """Set the application version."""

@@ -158,6 +158,8 @@ class HandlerTUI(App[Any]):
         except Exception as error:
             logger.error("Connection failed: %s", error, exc_info=True)
             messages_panel.add_system_message(f"Connection failed: {error!s}")
+            agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
+            agent_card_panel.update_card(None)
 
     @on(Input.Submitted, "#message-input")
     def handle_message_submit(self) -> None:

@@ -78,11 +78,23 @@ Screen {
     margin-bottom: 1;
 }
 
+.link-label {
+    height: auto;
+    margin-top: 1;
+}
+
 #report-bug-link,
 #sponsor-link,
 #discuss-link {
     height: auto;
     color: $accent;
+    margin-left: 2;
+}
+
+#report-bug-link:hover,
+#sponsor-link:hover,
+#discuss-link:hover {
+    text-style: bold underline;
 }
 
 /* Input row containers - button appears inside input */
