@@ -2,29 +2,12 @@
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-from textual.events import Enter, Leave
+
 from textual.widgets import Button, Input
 
 from a2a_handler.common import get_logger
 
 logger = get_logger(__name__)
-
-
-class InputRow(Horizontal):
-    """Input row that shows button on hover or when input is focused."""
-
-    def on_enter(self, event: Enter) -> None:
-        self.query_one("#send-btn", Button).display = True
-
-    def on_leave(self, event: Leave) -> None:
-        if not self.query_one("#message-input", Input).has_focus:
-            self.query_one("#send-btn", Button).display = False
-
-    def on_descendant_focus(self) -> None:
-        self.query_one("#send-btn", Button).display = True
-
-    def on_descendant_blur(self) -> None:
-        self.query_one("#send-btn", Button).display = False
 
 
 class InputPanel(Container):
@@ -33,14 +16,12 @@ class InputPanel(Container):
     ALLOW_MAXIMIZE = False
 
     def compose(self) -> ComposeResult:
-        with InputRow(id="input-row"):
+        with Horizontal(id="input-row"):
             yield Input(placeholder="Type your message...", id="message-input")
             yield Button("SEND", id="send-btn")
 
     def on_mount(self) -> None:
-        btn = self.query_one("#send-btn", Button)
-        btn.can_focus = False
-        btn.display = False
+        self.query_one("#send-btn", Button).can_focus = False
         logger.debug("Input panel mounted")
 
     def get_message(self) -> str:

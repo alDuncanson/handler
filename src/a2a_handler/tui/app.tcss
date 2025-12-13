@@ -109,9 +109,8 @@ Screen {
     background: transparent;
     border: none;
     height: 3;
-    padding: 0 1;
+    padding: 1 1;
     width: 1fr;
-    content-align: left middle;
 }
 
 /* Buttons - Flat & Thinner */
@@ -153,10 +152,9 @@ Button:hover {
 #message-input {
     border: none;
     height: 3;
-    padding: 0 1;
+    padding: 1 1;
     background: transparent;
     width: 1fr;
-    content-align: left middle;
 }
 
 /* Inline buttons */
@@ -164,6 +162,7 @@ Button:hover {
 #connect-btn {
     width: auto;
     min-width: 8;
+    height: 3;
     background: $primary;
     color: $background;
 }

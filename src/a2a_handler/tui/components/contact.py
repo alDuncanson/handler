@@ -5,7 +5,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.events import Enter, Leave
+
 from textual.widgets import Button, Input, Link, Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
@@ -15,23 +15,6 @@ logger = get_logger(__name__)
 REPORT_BUG_URL = "https://github.com/alDuncanson/Handler/issues"
 SPONSOR_URL = "https://github.com/sponsors/alDuncanson"
 DISCUSS_URL = "https://github.com/alDuncanson/Handler/discussions"
-
-
-class UrlRow(Horizontal):
-    """URL input row that shows button on hover or when input is focused."""
-
-    def on_enter(self, event: Enter) -> None:
-        self.query_one("#connect-btn", Button).display = True
-
-    def on_leave(self, event: Leave) -> None:
-        if not self.query_one("#agent-url", Input).has_focus:
-            self.query_one("#connect-btn", Button).display = False
-
-    def on_descendant_focus(self) -> None:
-        self.query_one("#connect-btn", Button).display = True
-
-    def on_descendant_blur(self) -> None:
-        self.query_one("#connect-btn", Button).display = False
 
 
 class ContactPanel(Container):
@@ -60,7 +43,7 @@ class ContactPanel(Container):
         with TabbedContent(id="contact-tabs"):
             with TabPane("Server", id="server-tab"):
                 yield Vertical(
-                    UrlRow(
+                    Horizontal(
                         Input(
                             placeholder="http://localhost:8000",
                             value="http://localhost:8000",
@@ -87,9 +70,7 @@ class ContactPanel(Container):
         for widget in self.query("TabbedContent, Tabs, Tab, TabPane"):
             widget.can_focus = False
         self.query_one("#agent-url", Input).can_focus = False
-        btn = self.query_one("#connect-btn", Button)
-        btn.can_focus = False
-        btn.display = False
+        self.query_one("#connect-btn", Button).can_focus = False
         for link in self.query(Link):
             link.can_focus = False
         self._update_version_display()
