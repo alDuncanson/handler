@@ -31,6 +31,8 @@ class AgentCardPanel(Container):
         Binding("k", "scroll_up", "Scroll Up", show=False),
         Binding("down", "scroll_down", "Scroll Down", show=False),
         Binding("up", "scroll_up", "Scroll Up", show=False),
+        Binding("ctrl+d", "scroll_half_down", "Half Page Down", show=False),
+        Binding("ctrl+u", "scroll_half_up", "Half Page Up", show=False),
     ]
 
     can_focus = True
@@ -116,3 +118,13 @@ class AgentCardPanel(Container):
         """Scroll up in the scroll container."""
         scroll_container = self.query_one("#raw-scroll", VerticalScroll)
         scroll_container.scroll_up()
+
+    def action_scroll_half_down(self) -> None:
+        """Scroll down half a page."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_relative(y=scroll_container.size.height // 2)
+
+    def action_scroll_half_up(self) -> None:
+        """Scroll up half a page."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_relative(y=-(scroll_container.size.height // 2))

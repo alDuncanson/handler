@@ -188,9 +188,22 @@ Button:hover {
     scrollbar-size: 1 1;
 }
 
-Message {
+Message,
+AgentMessage {
     margin-bottom: 1;
     height: auto;
+}
+
+Message.message-user {
+    color: $primary;
+}
+
+Message.message-system {
+    color: $text-muted;
+}
+
+AgentMessage {
+    color: $success;
 }
 
 /* Logs Panel - uses Textual's Log widget */

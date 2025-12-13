@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical, VerticalScroll
+from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class Message(Vertical):
+class Message(Static):
     """A single message in the chat."""
 
     def __init__(
@@ -31,23 +31,12 @@ class Message(Vertical):
         timestamp: datetime | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(**kwargs)
-        self.role = role
-        self.text = content
-        self.timestamp = timestamp or datetime.now()
-
-    def compose(self) -> ComposeResult:
-        formatted_time = self.timestamp.strftime("%H:%M:%S")
-
-        if self.role == "system":
-            yield Static(f"{formatted_time} [system] {self.text}")
-        elif self.role == "agent":
-            yield Static(f"{formatted_time} [agent] {self.text}")
-        else:
-            yield Static(f"{formatted_time} [user] {self.text}")
+        formatted_time = (timestamp or datetime.now()).strftime("%H:%M:%S")
+        super().__init__(f"{formatted_time} {content}", **kwargs)
+        self.add_class(f"message-{role}")
 
 
-class AgentMessage(Vertical):
+class AgentMessage(Static):
     """An agent message with A2A protocol metadata."""
 
     def __init__(
@@ -56,36 +45,9 @@ class AgentMessage(Vertical):
         timestamp: datetime | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(**kwargs)
-        self.send_result = send_result
-        self.timestamp = timestamp or datetime.now()
-
-    def compose(self) -> ComposeResult:
-        formatted_time = self.timestamp.strftime("%H:%M:%S")
-        result = self.send_result
-
-        metadata_parts = []
-        if result.task_id:
-            short_id = result.task_id[:8] if len(result.task_id) > 8 else result.task_id
-            metadata_parts.append(f"task:{short_id}")
-        if result.state:
-            metadata_parts.append(f"state:{result.state.value}")
-        if result.context_id:
-            short_ctx = (
-                result.context_id[:8]
-                if len(result.context_id) > 8
-                else result.context_id
-            )
-            metadata_parts.append(f"ctx:{short_ctx}")
-
-        if result.task and result.task.artifacts:
-            artifact_count = len(result.task.artifacts)
-            metadata_parts.append(f"artifacts:{artifact_count}")
-
-        metadata_str = " ".join(metadata_parts) if metadata_parts else "no-metadata"
-        content = result.text or "(no text in response)"
-
-        yield Static(f"{formatted_time} ({metadata_str})\n[agent] {content}")
+        formatted_time = (timestamp or datetime.now()).strftime("%H:%M:%S")
+        content = send_result.text or "(no text in response)"
+        super().__init__(f"{formatted_time} {content}", **kwargs)
 
 
 class ChatScrollContainer(VerticalScroll):
@@ -170,6 +132,8 @@ class TabbedMessagesPanel(Container):
         Binding("ctrl+l", "scroll_right", "Scroll Right", show=False),
         Binding("ctrl+left", "scroll_left", "Scroll Left", show=False),
         Binding("ctrl+right", "scroll_right", "Scroll Right", show=False),
+        Binding("ctrl+d", "scroll_half_down", "Half Page Down", show=False),
+        Binding("ctrl+u", "scroll_half_up", "Half Page Up", show=False),
     ]
 
     can_focus = True
@@ -292,3 +256,21 @@ class TabbedMessagesPanel(Container):
         active = self._get_active_tab_id()
         if active == "logs-tab":
             self._get_logs_panel().scroll_right()
+
+    def action_scroll_half_down(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "messages-tab":
+            container = self._get_chat_container()
+            container.scroll_relative(y=container.size.height // 2)
+        elif active == "logs-tab":
+            panel = self._get_logs_panel()
+            panel.scroll_relative(y=panel.size.height // 2)
+
+    def action_scroll_half_up(self) -> None:
+        active = self._get_active_tab_id()
+        if active == "messages-tab":
+            container = self._get_chat_container()
+            container.scroll_relative(y=-(container.size.height // 2))
+        elif active == "logs-tab":
+            panel = self._get_logs_panel()
+            panel.scroll_relative(y=-(panel.size.height // 2))

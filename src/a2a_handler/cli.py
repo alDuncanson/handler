@@ -10,6 +10,7 @@ Provides commands for interacting with A2A agents:
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Optional
 
@@ -33,8 +34,6 @@ from a2a_handler.auth import (
 )
 from a2a_handler.common import (
     Output,
-    format_field_name,
-    format_value,
     get_logger,
     setup_logging,
 )
@@ -619,74 +618,13 @@ def card_get(agent_url: str, authenticated: bool) -> None:
 
 
 def _format_agent_card(card_data: object, output: Output) -> None:
-    """Format and display an agent card."""
-
+    """Format and display an agent card as JSON."""
     card_dict: dict[str, Any]
     if isinstance(card_data, AgentCard):
-        card_dict = card_data.model_dump()
+        card_dict = card_data.model_dump(exclude_none=True)
     else:
         card_dict = {}
-    name = card_dict.pop("name", "Unknown Agent")
-    description = card_dict.pop("description", "")
-
-    security_schemes = card_dict.pop("securitySchemes", None)
-    security = card_dict.pop("security", None)
-
-    output.header(name)
-    if description:
-        output.line(description)
-
-    if security_schemes:
-        output.blank()
-        output.subheader("Authentication")
-        _format_security_schemes(security_schemes, security, output)
-
-    output.blank()
-    for key, value in card_dict.items():
-        if key.startswith("_"):
-            continue
-        formatted = format_value(value)
-        if formatted:
-            field_name = format_field_name(key)
-            if "\n" in formatted:
-                output.line(f"{field_name}:")
-                output.line(formatted)
-            else:
-                output.field(field_name, formatted)
-
-
-def _format_security_schemes(
-    schemes: dict[str, Any],
-    security: list[dict[str, list[str]]] | None,
-    output: Output,
-) -> None:
-    """Format security schemes from agent card."""
-    for scheme_name, scheme_def in schemes.items():
-        scheme_type = scheme_def.get("type", "unknown")
-
-        if scheme_type == "apiKey":
-            header_name = scheme_def.get("name", "X-API-Key")
-            location = scheme_def.get("in", "header")
-            output.field(scheme_name, f"API Key ({location}: {header_name})")
-        elif scheme_type == "http":
-            http_scheme = scheme_def.get("scheme", "bearer")
-            output.field(scheme_name, f"HTTP {http_scheme.title()}")
-        elif scheme_type == "oauth2":
-            output.field(scheme_name, "OAuth 2.0")
-        elif scheme_type == "openIdConnect":
-            oidc_url = scheme_def.get("openIdConnectUrl", "")
-            output.field(scheme_name, f"OpenID Connect ({oidc_url})")
-        elif scheme_type == "mutualTLS":
-            output.field(scheme_name, "Mutual TLS")
-        else:
-            output.field(scheme_name, scheme_type)
-
-    if security:
-        required_schemes = []
-        for sec_req in security:
-            required_schemes.extend(sec_req.keys())
-        if required_schemes:
-            output.field("Required", ", ".join(required_schemes))
+    output.line(json.dumps(card_dict, indent=2))
 
 
 @card.command("validate")

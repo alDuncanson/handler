@@ -37,3 +37,4 @@ class LogsPanel(Log):
     def load_logs(self, lines: list[str]) -> None:
         """Load multiple log lines at once."""
         self.write_lines(lines)
+        self.scroll_end(animate=False)

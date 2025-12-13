@@ -1,15 +1,11 @@
 """Common utilities for the Handler package.
 
-Provides logging, formatting, and output utilities shared across modules.
+Provides logging and output utilities shared across modules.
 """
 
 from .config import (
     get_theme,
     save_theme,
-)
-from .formatting import (
-    format_field_name,
-    format_value,
 )
 from .logging import (
     LogLevel,
@@ -27,8 +23,6 @@ __all__ = [
     "LogRecord",
     "Output",
     "TUILogHandler",
-    "format_field_name",
-    "format_value",
     "get_logger",
     "get_theme",
     "get_tui_log_handler",
