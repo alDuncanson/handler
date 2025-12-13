@@ -161,11 +161,18 @@ class A2AService:
         self._cached_agent_card: AgentCard | None = None
 
         if credentials:
-            auth_headers = credentials.to_headers()
-            self.http_client.headers.update(auth_headers)
-            logger.debug(
-                "Applied authentication headers: %s", list(auth_headers.keys())
-            )
+            self.set_credentials(credentials)
+
+    def set_credentials(self, credentials: AuthCredentials) -> None:
+        """Set or update authentication credentials.
+
+        Args:
+            credentials: Authentication credentials to apply
+        """
+        self.credentials = credentials
+        auth_headers = credentials.to_headers()
+        self.http_client.headers.update(auth_headers)
+        logger.debug("Applied authentication headers: %s", list(auth_headers.keys()))
 
     async def get_card(self) -> AgentCard:
         """Fetch and cache the agent card.

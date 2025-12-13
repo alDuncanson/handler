@@ -11,9 +11,11 @@ from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
+from a2a_handler.tui.components.auth import AuthPanel
 from a2a_handler.tui.components.logs import LogsPanel
 
 if TYPE_CHECKING:
+    from a2a_handler.auth import AuthCredentials
     from a2a_handler.service import SendResult
 
 logger = get_logger(__name__)
@@ -176,6 +178,8 @@ class TabbedMessagesPanel(Container):
         with TabbedContent(id="messages-tabs"):
             with TabPane("Messages", id="messages-tab"):
                 yield ChatScrollContainer(id="chat")
+            with TabPane("Auth", id="auth-tab"):
+                yield AuthPanel(id="auth-panel")
             with TabPane("Logs", id="logs-tab"):
                 yield LogsPanel(id="logs-panel")
 
@@ -189,6 +193,9 @@ class TabbedMessagesPanel(Container):
 
     def _get_logs_panel(self) -> LogsPanel:
         return self.query_one("#logs-panel", LogsPanel)
+
+    def _get_auth_panel(self) -> AuthPanel:
+        return self.query_one("#auth-panel", AuthPanel)
 
     def add_message(self, role: str, content: str) -> None:
         logger.debug("Adding %s message: %s", role, content[:50])
@@ -236,6 +243,11 @@ class TabbedMessagesPanel(Container):
         """Clear the logs panel."""
         logs_panel = self._get_logs_panel()
         logs_panel.clear()
+
+    def get_auth_credentials(self) -> "AuthCredentials | None":
+        """Get configured authentication credentials from the auth panel."""
+        auth_panel = self._get_auth_panel()
+        return auth_panel.get_credentials()
 
     def _get_active_tab_id(self) -> str:
         tabbed_content = self.query_one("#messages-tabs", TabbedContent)

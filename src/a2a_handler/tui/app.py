@@ -197,6 +197,10 @@ class HandlerTUI(App[Any]):
         try:
             logger.info("Sending message: %s", message_text[:50])
 
+            credentials = messages_panel.get_auth_credentials()
+            if credentials:
+                self._agent_service.set_credentials(credentials)
+
             send_result = await self._agent_service.send(
                 message_text,
                 context_id=self.current_context_id,

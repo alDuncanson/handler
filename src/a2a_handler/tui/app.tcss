@@ -205,6 +205,34 @@ Message {
     overflow-y: auto;
 }
 
+/* Auth Panel */
+#auth-panel {
+    height: auto;
+    padding: 1;
+}
+
+#auth-panel Label {
+    margin-bottom: 0;
+}
+
+#auth-panel RadioSet {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#auth-panel Input {
+    margin-bottom: 1;
+}
+
+.auth-fields {
+    height: auto;
+    margin-top: 1;
+}
+
+.auth-fields.hidden {
+    display: none;
+}
+
 
 
 /* Focusable panel containers */
