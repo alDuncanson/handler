@@ -123,18 +123,8 @@ class HandlerTUI(App[Any]):
         agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
         agent_card_panel.update_card(agent_card)
 
-        contact_panel = self.query_one("#contact-container", ContactPanel)
-        contact_panel.set_connected(True, agent_card.name)
-
         messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
         messages_panel.update_message_count()
-
-    def _update_ui_for_disconnected_state(self) -> None:
-        agent_card_panel = self.query_one("#agent-card-container", AgentCardPanel)
-        agent_card_panel.update_card(None)
-
-        contact_panel = self.query_one("#contact-container", ContactPanel)
-        contact_panel.set_connected(False)
 
     @on(Button.Pressed, "#connect-btn")
     async def handle_connect_button(self) -> None:
@@ -168,18 +158,6 @@ class HandlerTUI(App[Any]):
         except Exception as error:
             logger.error("Connection failed: %s", error, exc_info=True)
             messages_panel.add_system_message(f"Connection failed: {error!s}")
-
-    @on(Button.Pressed, "#disconnect-btn")
-    def handle_disconnect_button(self) -> None:
-        logger.info("Disconnecting from %s", self.current_agent_url)
-        self.current_agent_card = None
-        self.current_agent_url = None
-        self._agent_service = None
-
-        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
-        messages_panel.add_system_message("Disconnected")
-
-        self._update_ui_for_disconnected_state()
 
     @on(Input.Submitted, "#message-input")
     def handle_message_submit(self) -> None:

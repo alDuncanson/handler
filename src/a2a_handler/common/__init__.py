@@ -20,22 +20,16 @@ from .logging import (
     install_tui_log_handler,
     setup_logging,
 )
-from .output import (
-    Output,
-    OutputMode,
-    get_output_context,
-)
+from .output import Output
 
 __all__ = [
     "LogLevel",
     "LogRecord",
     "Output",
-    "OutputMode",
     "TUILogHandler",
     "format_field_name",
     "format_value",
     "get_logger",
-    "get_output_context",
     "get_theme",
     "get_tui_log_handler",
     "install_tui_log_handler",

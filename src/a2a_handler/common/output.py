@@ -1,16 +1,13 @@
 """Simple output formatting system for CLI.
 
-Provides a unified output interface supporting raw, text, and JSON modes.
-Uses basic ANSI colors for text mode.
+Provides styled console output with ANSI colors.
 """
 
 from __future__ import annotations
 
 import json as json_module
 import sys
-from contextlib import contextmanager
-from enum import Enum
-from typing import Any, Generator, TextIO
+from typing import Any, TextIO
 
 
 TERMINAL_STATES = {"completed", "failed", "canceled", "rejected"}
@@ -28,14 +25,6 @@ YELLOW = "\033[33m"
 CYAN = "\033[36m"
 
 
-class OutputMode(Enum):
-    """Output mode for CLI commands."""
-
-    RAW = "raw"
-    TEXT = "text"
-    JSON = "json"
-
-
 def _supports_color(stream: TextIO) -> bool:
     """Check if the stream supports ANSI colors."""
     if not hasattr(stream, "isatty"):
@@ -46,15 +35,14 @@ def _supports_color(stream: TextIO) -> bool:
 
 
 class Output:
-    """Manages output mode and styling.
+    """Manages styled console output.
 
     Provides a unified interface for outputting text, fields, JSON, and
-    markdown with automatic mode-aware formatting.
+    markdown with automatic color formatting when supported.
     """
 
-    def __init__(self, mode: OutputMode) -> None:
-        self.mode = mode
-        self._use_color = mode == OutputMode.TEXT and _supports_color(sys.stdout)
+    def __init__(self) -> None:
+        self._use_color = _supports_color(sys.stdout)
 
     def _style(self, text: str, *codes: str) -> str:
         """Apply ANSI codes if color is enabled."""
@@ -166,23 +154,3 @@ class Output:
     def list_item(self, text: str, bullet: str = "•") -> None:
         """Print a list item with bullet."""
         self._print(f"  {bullet} {text}")
-
-
-_current_context: Output | None = None
-
-
-@contextmanager
-def get_output_context(
-    mode: OutputMode | str,
-) -> Generator[Output, None, None]:
-    global _current_context
-
-    if isinstance(mode, str):
-        mode = OutputMode(mode)
-
-    context = Output(mode)
-    _current_context = context
-    try:
-        yield context
-    finally:
-        _current_context = None

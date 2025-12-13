@@ -18,13 +18,9 @@ logger = get_logger(__name__)
 TEXTUAL_TO_SYNTAX_THEME_MAP: dict[str, str] = {
     "gruvbox": "gruvbox-dark",
     "nord": "nord",
-    "tokyo-night": "monokai",
-    "textual-dark": "monokai",
     "textual-light": "default",
     "solarized-light": "solarized-light",
     "dracula": "dracula",
-    "catppuccin-mocha": "monokai",
-    "monokai": "monokai",
 }
 
 
@@ -82,10 +78,10 @@ class AgentCardPanel(Container):
         placeholder.display = False
         tabbed_content.display = True
 
-    def _get_syntax_theme_for_current_app_theme(self) -> str:
+    def _get_syntax_theme_for_current_app_theme(self) -> str | None:
         """Get the Rich Syntax theme name for the current app theme."""
         current_theme = self.app.theme or ""
-        return TEXTUAL_TO_SYNTAX_THEME_MAP.get(current_theme, "monokai")
+        return TEXTUAL_TO_SYNTAX_THEME_MAP.get(current_theme)
 
     def _convert_key_to_sentence_case(self, key: str) -> str:
         """Convert a camelCase or snake_case key to sentence case."""
@@ -181,7 +177,10 @@ class AgentCardPanel(Container):
 
             json_content = json.dumps(agent_card.model_dump(), indent=2, default=str)
             syntax_theme = self._get_syntax_theme_for_current_app_theme()
-            raw_view_widget.update(Syntax(json_content, "json", theme=syntax_theme))
+            if syntax_theme:
+                raw_view_widget.update(Syntax(json_content, "json", theme=syntax_theme))
+            else:
+                raw_view_widget.update(json_content)
             self._show_tabs()
 
     def refresh_theme(self) -> None:
@@ -194,9 +193,11 @@ class AgentCardPanel(Container):
             self._current_agent_card.model_dump(), indent=2, default=str
         )
         syntax_theme = self._get_syntax_theme_for_current_app_theme()
-        self.query_one("#agent-raw", Static).update(
-            Syntax(json_content, "json", theme=syntax_theme)
-        )
+        raw_widget = self.query_one("#agent-raw", Static)
+        if syntax_theme:
+            raw_widget.update(Syntax(json_content, "json", theme=syntax_theme))
+        else:
+            raw_widget.update(json_content)
 
     def _get_currently_active_scroll_container(self) -> VerticalScroll | None:
         """Get the currently visible scroll container."""

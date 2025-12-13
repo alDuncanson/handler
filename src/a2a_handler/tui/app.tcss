@@ -92,11 +92,6 @@ Screen {
     content-align: left middle; /* Vertically center text */
 }
 
-.contact-buttons {
-    layout: horizontal;
-    height: auto;
-}
-
 /* Buttons - Flat & Thinner */
 Button {
     border: none;
@@ -113,20 +108,8 @@ Button:hover {
     color: $background;
 }
 
-.contact-buttons Button {
-    width: 1fr;
-    margin-right: 1;
-}
-
-.contact-buttons Button:last-of-type {
-    margin-right: 0;
-}
-
 #connect-btn {
     color: $accent;
-}
-#disconnect-btn {
-    color: $error;
 }
 
 /* Agent Card Internal */
