@@ -48,7 +48,6 @@ class TestAuthCredentials:
             auth_type=AuthType.API_KEY,
             value="key123",
             header_name="X-My-Key",
-            in_location="header",
         )
         data = original.to_dict()
         restored = AuthCredentials.from_dict(data)
@@ -56,7 +55,6 @@ class TestAuthCredentials:
         assert restored.auth_type == original.auth_type
         assert restored.value == original.value
         assert restored.header_name == original.header_name
-        assert restored.in_location == original.in_location
 
 
 class TestAuthHelpers:
@@ -74,7 +72,6 @@ class TestAuthHelpers:
         assert creds.auth_type == AuthType.API_KEY
         assert creds.value == "my-key"
         assert creds.header_name == "X-API-Key"
-        assert creds.in_location == "header"
 
     def test_create_api_key_auth_custom(self) -> None:
         """create_api_key_auth with custom header."""

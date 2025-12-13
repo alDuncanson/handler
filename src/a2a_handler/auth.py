@@ -1,7 +1,7 @@
 """Authentication support for A2A protocol.
 
-Handles credential storage and HTTP authentication header generation
-based on the A2A spec's security schemes (apiKey, http bearer, oauth2, openIdConnect).
+Handles credential storage and HTTP authentication header generation.
+Currently supports API key and HTTP bearer authentication schemes.
 """
 
 from dataclasses import dataclass
@@ -25,7 +25,6 @@ class AuthCredentials:
     auth_type: AuthType
     value: str
     header_name: str | None = None  # For API key: custom header name
-    in_location: str | None = None  # "header", "query", "cookie"
 
     def to_headers(self) -> dict[str, str]:
         """Generate HTTP headers for this credential.
@@ -46,7 +45,6 @@ class AuthCredentials:
             "auth_type": self.auth_type.value,
             "value": self.value,
             "header_name": self.header_name,
-            "in_location": self.in_location,
         }
 
     @classmethod
@@ -56,7 +54,6 @@ class AuthCredentials:
             auth_type=AuthType(data["auth_type"]),
             value=data.get("value") or "",
             header_name=data.get("header_name"),
-            in_location=data.get("in_location"),
         )
 
 
@@ -68,18 +65,15 @@ def create_bearer_auth(token: str) -> AuthCredentials:
 def create_api_key_auth(
     key: str,
     header_name: str = "X-API-Key",
-    in_location: str = "header",
 ) -> AuthCredentials:
     """Create API key authentication.
 
     Args:
         key: The API key value
         header_name: Header name to use (default: X-API-Key)
-        in_location: Where to send the key (header, query, cookie)
     """
     return AuthCredentials(
         auth_type=AuthType.API_KEY,
         value=key,
         header_name=header_name,
-        in_location=in_location,
     )

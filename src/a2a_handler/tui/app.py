@@ -206,6 +206,9 @@ class HandlerTUI(App[Any]):
                 context_id=self.current_context_id,
             )
 
+            if send_result.context_id:
+                self.current_context_id = send_result.context_id
+
             logger.info(
                 "Response received - task_id=%s, state=%s, has_text=%s, has_task=%s, has_message=%s",
                 send_result.task_id,

@@ -67,6 +67,11 @@ async def handle_push_notification(request: Request) -> JSONResponse:
     """Handle incoming push notifications from A2A agents."""
     try:
         request_payload = await request.json()
+        if not isinstance(request_payload, dict):
+            logger.warning("Received non-object JSON in push notification")
+            return JSONResponse(
+                {"error": "Payload must be a JSON object"}, status_code=400
+            )
     except json.JSONDecodeError:
         logger.warning("Received invalid JSON in push notification")
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
