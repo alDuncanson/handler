@@ -1,13 +1,13 @@
 """Contact panel component for managing agent connections."""
 
+import webbrowser
 from typing import Any
 
+from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-
 from textual.widgets import Button, Input, Link, Static, TabbedContent, TabPane, Tabs
-from textual import on
 
 from a2a_handler.common import get_logger
 
@@ -135,24 +135,18 @@ class ContactPanel(Container):
         """Open the bug report URL."""
         if not self._is_help_tab_active():
             return
-        import webbrowser
-
         webbrowser.open(REPORT_BUG_URL)
 
     def action_open_sponsor(self) -> None:
         """Open the sponsor URL."""
         if not self._is_help_tab_active():
             return
-        import webbrowser
-
         webbrowser.open(SPONSOR_URL)
 
     def action_open_discuss(self) -> None:
         """Open the discuss URL."""
         if not self._is_help_tab_active():
             return
-        import webbrowser
-
         webbrowser.open(DISCUSS_URL)
 
     def set_version(self, version: str) -> None:

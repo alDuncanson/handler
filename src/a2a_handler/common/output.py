@@ -9,7 +9,6 @@ import json as json_module
 import sys
 from typing import Any, TextIO
 
-
 TERMINAL_STATES = {"completed", "failed", "canceled", "rejected"}
 SUCCESS_STATES = {"completed"}
 ERROR_STATES = {"failed", "rejected"}

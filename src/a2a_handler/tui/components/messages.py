@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, TabbedContent, TabPane, Tabs
-from textual import on
 
 from a2a_handler.common import get_logger
 from a2a_handler.tui.components.auth import AuthPanel

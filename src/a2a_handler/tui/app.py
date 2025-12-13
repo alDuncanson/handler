@@ -15,7 +15,6 @@ from textual import on, work
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-
 from textual.logging import TextualHandler
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Input
