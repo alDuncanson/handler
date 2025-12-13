@@ -9,6 +9,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, TabbedContent, TabPane, Tabs
+from textual import on
 
 from a2a_handler.common import get_logger
 from a2a_handler.tui.components.auth import AuthPanel
@@ -120,23 +121,32 @@ class TabbedMessagesPanel(Container):
     """Panel with tabs for Messages and Logs."""
 
     BINDINGS = [
-        Binding("h", "previous_tab", "Previous Tab", show=False),
-        Binding("l", "next_tab", "Next Tab", show=False),
+        Binding("h", "previous_tab", "← Tab", show=True, key_display="h/←"),
+        Binding("l", "next_tab", "→ Tab", show=True, key_display="l/→"),
         Binding("left", "previous_tab", "Previous Tab", show=False),
         Binding("right", "next_tab", "Next Tab", show=False),
-        Binding("j", "scroll_down", "Scroll Down", show=False),
-        Binding("k", "scroll_up", "Scroll Up", show=False),
+        Binding("j", "scroll_down", "↓ Scroll", show=True, key_display="j/↓"),
+        Binding("k", "scroll_up", "↑ Scroll", show=True, key_display="k/↑"),
         Binding("down", "scroll_down", "Scroll Down", show=False),
         Binding("up", "scroll_up", "Scroll Up", show=False),
-        Binding("ctrl+h", "scroll_left", "Scroll Left", show=False),
-        Binding("ctrl+l", "scroll_right", "Scroll Right", show=False),
+        Binding("ctrl+h", "scroll_left", "← Scroll", show=True),
+        Binding("ctrl+l", "scroll_right", "→ Scroll", show=True),
         Binding("ctrl+left", "scroll_left", "Scroll Left", show=False),
         Binding("ctrl+right", "scroll_right", "Scroll Right", show=False),
-        Binding("ctrl+d", "scroll_half_down", "Half Page Down", show=False),
-        Binding("ctrl+u", "scroll_half_up", "Half Page Up", show=False),
+        Binding("ctrl+d", "scroll_half_down", "½ Page ↓", show=True),
+        Binding("ctrl+u", "scroll_half_up", "½ Page ↑", show=True),
     ]
 
     can_focus = True
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Show/hide actions based on active tab context."""
+        active = self._get_active_tab_id()
+        if action in ("scroll_down", "scroll_up", "scroll_half_down", "scroll_half_up"):
+            return active in ("messages-tab", "logs-tab")
+        if action in ("scroll_left", "scroll_right"):
+            return active == "logs-tab"
+        return True
 
     def compose(self) -> ComposeResult:
         with TabbedContent(id="messages-tabs"):
@@ -151,6 +161,11 @@ class TabbedMessagesPanel(Container):
         for widget in self.query("TabbedContent, Tabs, Tab, TabPane"):
             widget.can_focus = False
         logger.debug("Tabbed messages panel mounted")
+
+    @on(TabbedContent.TabActivated)
+    def _on_tab_activated(self) -> None:
+        """Refresh bindings when switching tabs."""
+        self.refresh_bindings()
 
     def _get_chat_container(self) -> ChatScrollContainer:
         return self.query_one("#chat", ChatScrollContainer)

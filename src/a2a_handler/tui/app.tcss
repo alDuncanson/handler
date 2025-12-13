@@ -255,3 +255,23 @@ AgentCardPanel:focus {
 TabbedMessagesPanel:focus {
     border: round $accent;
 }
+
+/* Footer - unobtrusive dimmed style */
+Footer {
+    background: transparent;
+    color: $text-muted;
+}
+
+Footer > FooterKey {
+    background: transparent;
+    color: $text-muted;
+}
+
+Footer > FooterKey > .footer-key--key {
+    background: $surface;
+    color: $text-muted;
+}
+
+Footer > FooterKey > .footer-key--description {
+    color: $text-muted;
+}

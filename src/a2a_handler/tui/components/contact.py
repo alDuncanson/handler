@@ -7,6 +7,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 
 from textual.widgets import Button, Input, Link, Static, TabbedContent, TabPane, Tabs
+from textual import on
 
 from a2a_handler.common import get_logger
 
@@ -23,17 +24,26 @@ class ContactPanel(Container):
     ALLOW_MAXIMIZE = False
 
     BINDINGS = [
-        Binding("h", "previous_tab", "Previous Tab", show=False),
-        Binding("l", "next_tab", "Next Tab", show=False),
+        Binding("h", "previous_tab", "← Tab", show=True, key_display="h/←"),
+        Binding("l", "next_tab", "→ Tab", show=True, key_display="l/→"),
         Binding("left", "previous_tab", "Previous Tab", show=False),
         Binding("right", "next_tab", "Next Tab", show=False),
-        Binding("enter", "focus_input", "Focus Input", show=False),
-        Binding("b", "open_bug_report", "Report Bug", show=False),
-        Binding("s", "open_sponsor", "Sponsor", show=False),
-        Binding("d", "open_discuss", "Discuss", show=False),
+        Binding("enter", "focus_input", "Edit URL", show=True),
+        Binding("b", "open_bug_report", "Bug", show=True),
+        Binding("s", "open_sponsor", "Sponsor", show=True),
+        Binding("d", "open_discuss", "Discuss", show=True),
     ]
 
     can_focus = True
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Show/hide actions based on active tab context."""
+        is_help = self._is_help_tab_active()
+        if action in ("open_bug_report", "open_sponsor", "open_discuss"):
+            return is_help
+        if action == "focus_input":
+            return not is_help
+        return True
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -75,6 +85,11 @@ class ContactPanel(Container):
             link.can_focus = False
         self._update_version_display()
         logger.debug("Contact panel mounted")
+
+    @on(TabbedContent.TabActivated)
+    def _on_tab_activated(self) -> None:
+        """Refresh bindings when switching tabs."""
+        self.refresh_bindings()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle enter key in the URL input to connect."""

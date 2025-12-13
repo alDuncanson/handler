@@ -18,7 +18,7 @@ from textual.containers import Container, Vertical
 
 from textual.logging import TextualHandler
 from textual.screen import Screen
-from textual.widgets import Button, Input
+from textual.widgets import Button, Footer, Input
 
 from a2a_handler.common import get_theme, install_tui_log_handler, save_theme
 from a2a_handler.service import A2AService
@@ -54,10 +54,24 @@ class HandlerTUI(App[Any]):
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", show=True),
-        Binding("ctrl+c", "clear_chat", "Clear", show=True),
-        Binding("ctrl+p", "command_palette", "Palette", show=True),
-        Binding("ctrl+m", "toggle_maximize", "Maximize", show=False),
+        Binding("/", "command_palette", "Palette", show=True),
+        Binding("ctrl+m", "toggle_maximize", "Maximize", show=True),
     ]
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Show maximize binding only for maximizable panels."""
+        if action == "toggle_maximize":
+            focused = self.focused
+            if focused is None:
+                return False
+            for panel in (
+                self.query_one("#messages-container", TabbedMessagesPanel),
+                self.query_one("#agent-card-container", AgentCardPanel),
+            ):
+                if focused is panel or panel in focused.ancestors:
+                    return True
+            return False
+        return True
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -77,6 +91,7 @@ class HandlerTUI(App[Any]):
             with Vertical(id="right-pane"):
                 yield TabbedMessagesPanel(id="messages-container", classes="panel")
                 yield InputPanel(id="input-container", classes="panel")
+        yield Footer(show_command_palette=False)
 
     async def on_mount(self) -> None:
         logger.info("TUI application starting")
@@ -227,10 +242,6 @@ class HandlerTUI(App[Any]):
         except Exception as error:
             logger.error("Error sending message: %s", error, exc_info=True)
             messages_panel.add_system_message(f"Error: {error!s}")
-
-    async def action_clear_chat(self) -> None:
-        messages_panel = self.query_one("#messages-container", TabbedMessagesPanel)
-        await messages_panel.clear()
 
     def action_toggle_maximize(self) -> None:
         """Toggle maximize for the focused panel."""

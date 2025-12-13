@@ -2,7 +2,6 @@
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-
 from textual.widgets import Button, Input
 
 from a2a_handler.common import get_logger

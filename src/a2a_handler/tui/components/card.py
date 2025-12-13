@@ -27,15 +27,21 @@ class AgentCardPanel(Container):
     """Panel displaying agent card information with tabs."""
 
     BINDINGS = [
-        Binding("j", "scroll_down", "Scroll Down", show=False),
-        Binding("k", "scroll_up", "Scroll Up", show=False),
+        Binding("j", "scroll_down", "↓ Scroll", show=True, key_display="j/↓"),
+        Binding("k", "scroll_up", "↑ Scroll", show=True, key_display="k/↑"),
         Binding("down", "scroll_down", "Scroll Down", show=False),
         Binding("up", "scroll_up", "Scroll Up", show=False),
-        Binding("ctrl+d", "scroll_half_down", "Half Page Down", show=False),
-        Binding("ctrl+u", "scroll_half_up", "Half Page Up", show=False),
+        Binding("ctrl+d", "scroll_half_down", "½ Page ↓", show=True),
+        Binding("ctrl+u", "scroll_half_up", "½ Page ↑", show=True),
     ]
 
     can_focus = True
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Hide scroll actions when no agent card is loaded."""
+        if action in ("scroll_down", "scroll_up", "scroll_half_down", "scroll_half_up"):
+            return self._current_agent_card is not None
+        return True
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -76,6 +82,7 @@ class AgentCardPanel(Container):
     def update_card(self, agent_card: AgentCard | None) -> None:
         """Update the displayed agent card."""
         self._current_agent_card = agent_card
+        self.refresh_bindings()
 
         raw_view_widget = self.query_one("#agent-raw", Static)
 
