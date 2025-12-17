@@ -56,7 +56,6 @@ from a2a_handler.validation import (
 )
 from a2a_handler.webhook import run_webhook_server
 
-# rich_click configuration
 click.rich_click.USE_RICH_MARKUP = True
 click.rich_click.USE_MARKDOWN = True
 click.rich_click.SHOW_ARGUMENTS = True
@@ -204,11 +203,6 @@ def _handle_client_error(e: Exception, agent_url: str, context: object) -> None:
         click.echo(f"Error: {message}", err=True)
 
 
-# ============================================================================
-# Main CLI Group
-# ============================================================================
-
-
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--debug", "-d", is_flag=True, help="Enable debug logging")
@@ -223,11 +217,6 @@ def cli(ctx: click.Context, verbose: bool, debug: bool) -> None:
         setup_logging(level="INFO")
     else:
         setup_logging(level="ERROR")
-
-
-# ============================================================================
-# Message Commands
-# ============================================================================
 
 
 @cli.group()
@@ -418,11 +407,6 @@ def _format_send_result(result: SendResult, output: Output) -> None:
         output.dim("No text content in response")
 
 
-# ============================================================================
-# Task Commands
-# ============================================================================
-
-
 @cli.group()
 def task() -> None:
     """Manage A2A tasks."""
@@ -528,11 +512,6 @@ def _format_task_result(result: TaskResult, output: Output) -> None:
         output.markdown(result.text)
 
 
-# ============================================================================
-# Task Notification Commands
-# ============================================================================
-
-
 @task.group("notification")
 def task_notification() -> None:
     """Manage push notification configurations for tasks."""
@@ -578,11 +557,6 @@ def notification_set(
             raise click.Abort()
 
     asyncio.run(do_set())
-
-
-# ============================================================================
-# Card Commands
-# ============================================================================
 
 
 @cli.group()
@@ -666,11 +640,6 @@ def _format_validation_result(result: ValidationResult, output: Output) -> None:
             output.list_item(f"{issue.field_name}: {issue.message}", bullet="✗")
 
 
-# ============================================================================
-# Server Commands
-# ============================================================================
-
-
 @cli.group()
 def server() -> None:
     """Run local servers."""
@@ -717,11 +686,6 @@ def server_push(host: str, port: int) -> None:
     """Start a local webhook server for receiving push notifications."""
     log.info("Starting webhook server on %s:%d", host, port)
     run_webhook_server(host, port)
-
-
-# ============================================================================
-# Session Commands
-# ============================================================================
 
 
 @cli.group()
@@ -776,11 +740,6 @@ def session_clear(agent_url: Optional[str], clear_all: bool) -> None:
         output.success(f"Cleared session for {agent_url}")
     else:
         output.warning("Provide AGENT_URL or use --all to clear sessions")
-
-
-# ============================================================================
-# Auth Commands
-# ============================================================================
 
 
 @cli.group()
@@ -863,11 +822,6 @@ def auth_clear(agent_url: str) -> None:
     output.success(f"Cleared credentials for {agent_url}")
 
 
-# ============================================================================
-# Utility Commands
-# ============================================================================
-
-
 @cli.command()
 def version() -> None:
     """Display the current version."""
@@ -881,11 +835,6 @@ def tui() -> None:
     logging.getLogger().handlers = []
     app = HandlerTUI()
     app.run()
-
-
-# ============================================================================
-# Entry Point
-# ============================================================================
 
 
 def main() -> None:
