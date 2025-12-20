@@ -32,7 +32,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "a2a-sdk>=0.2.5",
+    "a2a-sdk>=0.3.22",
     "click>=8.0.0",
     "rich-click>=1.8.0",
     "google-adk>=0.5.0",
