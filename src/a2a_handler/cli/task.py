@@ -5,8 +5,10 @@ from typing import Optional
 
 import rich_click as click
 
+from a2a_handler.auth import AuthCredentials, create_api_key_auth, create_bearer_auth
 from a2a_handler.common import Output, get_logger
 from a2a_handler.service import A2AService, TaskResult
+from a2a_handler.session import get_credentials
 
 from ._helpers import build_http_client, handle_client_error
 
@@ -25,19 +27,31 @@ def task() -> None:
 @click.option(
     "--history-length", "-n", type=int, help="Number of history messages to include"
 )
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 def task_get(
     agent_url: str,
     task_id: str,
     history_length: Optional[int],
+    bearer_token: Optional[str],
+    api_key: Optional[str],
 ) -> None:
     """Retrieve the current status of a task."""
     log.info("Getting task %s from %s", task_id, agent_url)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_get() -> None:
         output = Output()
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url)
+                service = A2AService(http_client, agent_url, credentials=credentials)
                 result = await service.get_task(task_id, history_length)
                 _format_task_result(result, output)
         except Exception as e:
@@ -50,15 +64,30 @@ def task_get(
 @task.command("cancel")
 @click.argument("agent_url")
 @click.argument("task_id")
-def task_cancel(agent_url: str, task_id: str) -> None:
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
+def task_cancel(
+    agent_url: str,
+    task_id: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
+) -> None:
     """Request cancellation of a task."""
     log.info("Canceling task %s at %s", task_id, agent_url)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_cancel() -> None:
         output = Output()
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url)
+                service = A2AService(http_client, agent_url, credentials=credentials)
 
                 output.dim(f"Canceling task {task_id}...")
 
@@ -77,15 +106,30 @@ def task_cancel(agent_url: str, task_id: str) -> None:
 @task.command("resubscribe")
 @click.argument("agent_url")
 @click.argument("task_id")
-def task_resubscribe(agent_url: str, task_id: str) -> None:
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
+def task_resubscribe(
+    agent_url: str,
+    task_id: str,
+    bearer_token: Optional[str],
+    api_key: Optional[str],
+) -> None:
     """Resubscribe to a task's SSE stream after disconnection."""
     log.info("Resubscribing to task %s at %s", task_id, agent_url)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_resubscribe() -> None:
         output = Output()
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url)
+                service = A2AService(http_client, agent_url, credentials=credentials)
 
                 output.dim(f"Resubscribing to task {task_id}...")
 
@@ -129,20 +173,32 @@ def task_notification() -> None:
 @click.argument("task_id")
 @click.option("--url", "-u", required=True, help="Webhook URL to receive notifications")
 @click.option("--token", "-t", help="Authentication token for the webhook")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 def notification_set(
     agent_url: str,
     task_id: str,
     url: str,
     token: Optional[str],
+    bearer_token: Optional[str],
+    api_key: Optional[str],
 ) -> None:
     """Configure a push notification webhook for a task."""
     log.info("Setting push config for task %s at %s", task_id, agent_url)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_set() -> None:
         output = Output()
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url)
+                service = A2AService(http_client, agent_url, credentials=credentials)
 
                 output.dim(f"Setting notification config for task {task_id}...")
 
@@ -169,19 +225,31 @@ def notification_set(
 @click.argument("agent_url")
 @click.argument("task_id")
 @click.option("--config-id", "-c", help="Specific push notification config ID")
+@click.option("--bearer", "-b", "bearer_token", help="Bearer token (overrides saved)")
+@click.option("--api-key", "-k", help="API key (overrides saved)")
 def notification_get(
     agent_url: str,
     task_id: str,
     config_id: Optional[str],
+    bearer_token: Optional[str],
+    api_key: Optional[str],
 ) -> None:
     """Get the push notification configuration for a task."""
     log.info("Getting push config for task %s at %s", task_id, agent_url)
+
+    credentials: AuthCredentials | None = None
+    if bearer_token:
+        credentials = create_bearer_auth(bearer_token)
+    elif api_key:
+        credentials = create_api_key_auth(api_key)
+    else:
+        credentials = get_credentials(agent_url)
 
     async def do_get() -> None:
         output = Output()
         try:
             async with build_http_client() as http_client:
-                service = A2AService(http_client, agent_url)
+                service = A2AService(http_client, agent_url, credentials=credentials)
 
                 config = await service.get_push_config(task_id, config_id)
 
