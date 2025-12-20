@@ -163,3 +163,39 @@ def notification_set(
             raise click.Abort()
 
     asyncio.run(do_set())
+
+
+@task_notification.command("get")
+@click.argument("agent_url")
+@click.argument("task_id")
+@click.option("--config-id", "-c", help="Specific push notification config ID")
+def notification_get(
+    agent_url: str,
+    task_id: str,
+    config_id: Optional[str],
+) -> None:
+    """Get the push notification configuration for a task."""
+    log.info("Getting push config for task %s at %s", task_id, agent_url)
+
+    async def do_get() -> None:
+        output = Output()
+        try:
+            async with build_http_client() as http_client:
+                service = A2AService(http_client, agent_url)
+
+                config = await service.get_push_config(task_id, config_id)
+
+                output.field("Task ID", config.task_id)
+                if config.push_notification_config:
+                    pnc = config.push_notification_config
+                    output.field("URL", pnc.url)
+                    if pnc.token:
+                        output.field("Token", f"{pnc.token[:20]}...")
+                    if pnc.id:
+                        output.field("Config ID", pnc.id)
+
+        except Exception as e:
+            handle_client_error(e, agent_url, output)
+            raise click.Abort()
+
+    asyncio.run(do_get())
