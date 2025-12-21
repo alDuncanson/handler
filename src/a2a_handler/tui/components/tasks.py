@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message as TextualMessage
 from textual.reactive import reactive
-from textual.widgets import Label, ListItem, ListView, Static
+from textual.widgets import Collapsible, Label, ListItem, ListView, Static
 
 from a2a_handler.common import get_logger
 
@@ -121,11 +122,21 @@ class TaskDetailPanel(VerticalScroll):
 
         if task.artifacts:
             content.mount(
-                Static(f"Artifacts: {len(task.artifacts)}", classes="task-section")
+                Horizontal(
+                    Static("Artifacts: ", classes="task-section-label"),
+                    Static(str(len(task.artifacts)), classes="task-section-count"),
+                    classes="task-section-row",
+                )
             )
             for i, artifact in enumerate(task.artifacts):
                 artifact_id = artifact.artifact_id or f"artifact-{i}"
-                content.mount(Static(f"  • {artifact_id}", classes="task-item"))
+                content.mount(
+                    Horizontal(
+                        Static(f"{i + 1}. ", classes="artifact-number"),
+                        Static(artifact_id, classes="artifact-id"),
+                        classes="artifact-row",
+                    )
+                )
                 if artifact.parts:
                     from a2a_handler.service import extract_text_from_message_parts
 
@@ -136,10 +147,64 @@ class TaskDetailPanel(VerticalScroll):
                             preview += "..."
                         content.mount(Static(f"    {preview}", classes="task-preview"))
 
+                raw_json = json.dumps(artifact.model_dump(), indent=2, default=str)
+                content.mount(
+                    Collapsible(
+                        Static(raw_json),
+                        title="Raw JSON",
+                        collapsed=True,
+                    )
+                )
+
         if task.history:
             content.mount(
-                Static(f"History: {len(task.history)} messages", classes="task-section")
+                Horizontal(
+                    Static("Message history: ", classes="task-section-label"),
+                    Static(str(len(task.history)), classes="task-section-count"),
+                    classes="task-section-row",
+                )
             )
+            for i, message in enumerate(task.history):
+                role_value = (
+                    message.role.value
+                    if hasattr(message.role, "value")
+                    else str(message.role)
+                    if hasattr(message, "role")
+                    else "unknown"
+                )
+                role_class = (
+                    "history-role-agent"
+                    if role_value == "agent"
+                    else "history-role-user"
+                )
+
+                preview = ""
+                if hasattr(message, "parts") and message.parts:
+                    from a2a_handler.service import extract_text_from_message_parts
+
+                    text = extract_text_from_message_parts(message.parts)
+                    if text:
+                        preview = text[:100].replace("\n", " ")
+                        if len(text) > 100:
+                            preview += "..."
+
+                content.mount(
+                    Horizontal(
+                        Static(f"{i + 1}. ", classes="history-number"),
+                        Static(f"{role_value}: ", classes=role_class),
+                        Static(preview, classes="history-message"),
+                        classes="history-row",
+                    )
+                )
+
+                raw_json = json.dumps(message.model_dump(), indent=2, default=str)
+                content.mount(
+                    Collapsible(
+                        Static(raw_json),
+                        title="Raw JSON",
+                        collapsed=True,
+                    )
+                )
 
 
 class TasksPanel(Container):
@@ -150,6 +215,8 @@ class TasksPanel(Container):
         Binding("k", "cursor_up", "↑ Select", show=True, key_display="k/↑"),
         Binding("down", "cursor_down", "Down", show=False),
         Binding("up", "cursor_up", "Up", show=False),
+        Binding("ctrl+d", "scroll_detail_down", "½ Page ↓", show=True),
+        Binding("ctrl+u", "scroll_detail_up", "½ Page ↑", show=True),
         Binding("enter", "select_task", "View", show=True),
         Binding("y", "copy_task_id", "Copy ID", show=True),
         Binding("Y", "copy_context_id", "Copy Ctx", show=True),
@@ -244,6 +311,16 @@ class TasksPanel(Container):
     def action_cursor_up(self) -> None:
         list_view = self._get_list_view()
         list_view.action_cursor_up()
+
+    def action_scroll_detail_down(self) -> None:
+        """Scroll the detail panel down by half a page."""
+        detail = self._get_detail_panel()
+        detail.scroll_relative(y=detail.size.height // 2, animate=False)
+
+    def action_scroll_detail_up(self) -> None:
+        """Scroll the detail panel up by half a page."""
+        detail = self._get_detail_panel()
+        detail.scroll_relative(y=-(detail.size.height // 2), animate=False)
 
     def action_select_task(self) -> None:
         list_view = self._get_list_view()

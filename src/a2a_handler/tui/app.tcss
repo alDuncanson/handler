@@ -284,10 +284,32 @@ AgentMessage {
     color: $accent;
 }
 
-.task-section {
+.task-section-row {
     height: auto;
-    color: $success;
+    width: auto;
     margin-top: 1;
+}
+
+.task-section-label {
+    width: auto;
+    color: $text-muted;
+}
+
+.task-section-count {
+    width: auto;
+    color: $accent;
+}
+
+.artifact-row {
+    height: auto;
+}
+
+.artifact-number {
+    color: $text-muted;
+}
+
+.artifact-id {
+    color: $text;
 }
 
 .task-item {
@@ -298,6 +320,30 @@ AgentMessage {
 .task-preview {
     height: auto;
     color: $text-muted;
+}
+
+.history-row {
+    height: auto;
+}
+
+.history-number {
+    width: auto;
+    color: $text-muted;
+}
+
+.history-role-user {
+    width: auto;
+    color: $primary;
+}
+
+.history-role-agent {
+    width: auto;
+    color: $success;
+}
+
+.history-message {
+    width: 1fr;
+    color: $text;
 }
 
 /* Auth Panel */
