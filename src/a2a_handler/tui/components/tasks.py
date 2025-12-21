@@ -143,7 +143,7 @@ class TasksPanel(Container):
         Binding("Y", "copy_context_id", "Copy Ctx", show=True),
     ]
 
-    can_focus = True
+    can_focus = False
 
     selected_index: reactive[int] = reactive(0)
     _tasks: list[TaskEntry] = []
@@ -162,6 +162,8 @@ class TasksPanel(Container):
 
     def on_mount(self) -> None:
         self._tasks = []
+        for widget in self.query("ListView, TaskDetailPanel"):
+            widget.can_focus = False
         logger.debug("Tasks panel mounted")
 
     def _get_list_view(self) -> ListView:

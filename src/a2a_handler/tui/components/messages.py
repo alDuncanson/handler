@@ -147,7 +147,9 @@ class TabbedMessagesPanel(Container):
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Show/hide actions based on active tab context."""
         active = self._get_active_tab_id()
-        if action in ("scroll_down", "scroll_up", "scroll_half_down", "scroll_half_up"):
+        if action in ("scroll_down", "scroll_up"):
+            return active in ("messages-tab", "logs-tab", "tasks-tab")
+        if action in ("scroll_half_down", "scroll_half_up"):
             return active in ("messages-tab", "logs-tab")
         if action in ("scroll_left", "scroll_right"):
             return active == "logs-tab"
@@ -276,6 +278,8 @@ class TabbedMessagesPanel(Container):
             self._get_chat_container().scroll_down()
         elif active == "logs-tab":
             self._get_logs_panel().scroll_down()
+        elif active == "tasks-tab":
+            self._get_tasks_panel().action_cursor_down()
 
     def action_scroll_up(self) -> None:
         active = self._get_active_tab_id()
@@ -283,6 +287,8 @@ class TabbedMessagesPanel(Container):
             self._get_chat_container().scroll_up()
         elif active == "logs-tab":
             self._get_logs_panel().scroll_up()
+        elif active == "tasks-tab":
+            self._get_tasks_panel().action_cursor_up()
 
     def action_scroll_left(self) -> None:
         active = self._get_active_tab_id()
