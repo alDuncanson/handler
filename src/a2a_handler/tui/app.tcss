@@ -267,6 +267,13 @@ AgentMessage {
     height: auto;
 }
 
+.section-heading {
+    color: $accent;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
 .task-field-row {
     height: auto;
     width: auto;
@@ -284,32 +291,16 @@ AgentMessage {
     color: $accent;
 }
 
-.task-section-row {
-    height: auto;
-    width: auto;
+.artifact-id {
+    color: $text;
+    text-style: bold;
     margin-top: 1;
 }
 
-.task-section-label {
-    width: auto;
-    color: $text-muted;
-}
-
-.task-section-count {
-    width: auto;
-    color: $accent;
-}
-
-.artifact-row {
+.artifact-preview {
     height: auto;
-}
-
-.artifact-number {
     color: $text-muted;
-}
-
-.artifact-id {
-    color: $text;
+    padding-left: 2;
 }
 
 .task-item {
@@ -317,33 +308,24 @@ AgentMessage {
     color: $text;
 }
 
-.task-preview {
+.history-item {
     height: auto;
-    color: $text-muted;
-}
-
-.history-row {
-    height: auto;
-}
-
-.history-number {
-    width: auto;
-    color: $text-muted;
+    margin-top: 1;
 }
 
 .history-role-user {
-    width: auto;
     color: $primary;
+    text-style: bold;
 }
 
 .history-role-agent {
-    width: auto;
     color: $success;
+    text-style: bold;
 }
 
 .history-message {
-    width: 1fr;
     color: $text;
+    padding-left: 2;
 }
 
 /* Auth Panel */

@@ -86,6 +86,10 @@ class TaskDetailPanel(VerticalScroll):
             classes="task-field-row",
         )
 
+    def _section_heading(self, title: str) -> Static:
+        """Create a section heading."""
+        return Static(title, classes="section-heading")
+
     def show_task(self, entry: TaskEntry | None) -> None:
         placeholder = self.query_one("#task-detail-placeholder", Static)
         content = self.query_one("#task-detail-content", Container)
@@ -101,6 +105,7 @@ class TaskDetailPanel(VerticalScroll):
 
         task = entry.task
 
+        content.mount(self._section_heading("Metadata"))
         content.mount(
             self._field("Task ID", task.id),
             self._field("Context ID", task.context_id),
@@ -121,22 +126,10 @@ class TaskDetailPanel(VerticalScroll):
                         content.mount(self._field("Status Message", text[:200]))
 
         if task.artifacts:
-            content.mount(
-                Horizontal(
-                    Static("Artifacts: ", classes="task-section-label"),
-                    Static(str(len(task.artifacts)), classes="task-section-count"),
-                    classes="task-section-row",
-                )
-            )
-            for i, artifact in enumerate(task.artifacts):
-                artifact_id = artifact.artifact_id or f"artifact-{i}"
-                content.mount(
-                    Horizontal(
-                        Static(f"{i + 1}. ", classes="artifact-number"),
-                        Static(artifact_id, classes="artifact-id"),
-                        classes="artifact-row",
-                    )
-                )
+            content.mount(self._section_heading("Artifacts"))
+            for artifact in task.artifacts:
+                artifact_id = artifact.artifact_id or "unnamed"
+                content.mount(Static(artifact_id, classes="artifact-id"))
                 if artifact.parts:
                     from a2a_handler.service import extract_text_from_message_parts
 
@@ -145,7 +138,7 @@ class TaskDetailPanel(VerticalScroll):
                         preview = text[:100].replace("\n", " ")
                         if len(text) > 100:
                             preview += "..."
-                        content.mount(Static(f"    {preview}", classes="task-preview"))
+                        content.mount(Static(preview, classes="artifact-preview"))
 
                 raw_json = json.dumps(artifact.model_dump(), indent=2, default=str)
                 content.mount(
@@ -157,14 +150,8 @@ class TaskDetailPanel(VerticalScroll):
                 )
 
         if task.history:
-            content.mount(
-                Horizontal(
-                    Static("Message history: ", classes="task-section-label"),
-                    Static(str(len(task.history)), classes="task-section-count"),
-                    classes="task-section-row",
-                )
-            )
-            for i, message in enumerate(task.history):
+            content.mount(self._section_heading("Messages"))
+            for message in task.history:
                 role_value = (
                     message.role.value
                     if hasattr(message.role, "value")
@@ -189,11 +176,10 @@ class TaskDetailPanel(VerticalScroll):
                             preview += "..."
 
                 content.mount(
-                    Horizontal(
-                        Static(f"{i + 1}. ", classes="history-number"),
-                        Static(f"{role_value}: ", classes=role_class),
+                    Container(
+                        Static(role_value, classes=role_class),
                         Static(preview, classes="history-message"),
-                        classes="history-row",
+                        classes="history-item",
                     )
                 )
 
