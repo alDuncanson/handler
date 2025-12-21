@@ -261,6 +261,7 @@ class TabbedMessagesPanel(Container):
         try:
             tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
             tabs_widget.action_previous_tab()
+            self.focus()
         except Exception:
             pass
 
@@ -269,6 +270,7 @@ class TabbedMessagesPanel(Container):
         try:
             tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
             tabs_widget.action_next_tab()
+            self.focus()
         except Exception:
             pass
 
