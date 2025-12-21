@@ -65,7 +65,7 @@ class TaskListItem(ListItem):
         time_str = self.entry.received_at.strftime("%H:%M:%S")
         state_str = self.entry.state_str
         task_id_short = self.entry.task_id[:8] if self.entry.task_id else "?"
-        yield Label(f"{time_str}  [{state_str}]  {task_id_short}...")
+        yield Label(f"{time_str}  [{state_str}]  {task_id_short}")
 
 
 class TaskDetailPanel(VerticalScroll):
@@ -73,11 +73,21 @@ class TaskDetailPanel(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         yield Static("Select a task to view details", id="task-detail-placeholder")
-        yield Static("", id="task-detail-content", classes="hidden")
+        yield Container(id="task-detail-content", classes="hidden")
+
+    def _field(
+        self, label: str, value: str, value_class: str = "task-value"
+    ) -> Horizontal:
+        """Create a label-value field row."""
+        return Horizontal(
+            Label(f"{label}: ", classes="task-label"),
+            Label(value, classes=value_class),
+            classes="task-field-row",
+        )
 
     def show_task(self, entry: TaskEntry | None) -> None:
         placeholder = self.query_one("#task-detail-placeholder", Static)
-        content = self.query_one("#task-detail-content", Static)
+        content = self.query_one("#task-detail-content", Container)
 
         if entry is None:
             placeholder.remove_class("hidden")
@@ -86,18 +96,20 @@ class TaskDetailPanel(VerticalScroll):
 
         placeholder.add_class("hidden")
         content.remove_class("hidden")
+        content.remove_children()
 
         task = entry.task
-        lines = [
-            f"[b]Task ID:[/b] {task.id}",
-            f"[b]Context ID:[/b] {task.context_id}",
-            f"[b]State:[/b] {entry.state_str}",
-            f"[b]Received:[/b] {entry.received_at.strftime('%Y-%m-%d %H:%M:%S')}",
-        ]
+
+        content.mount(
+            self._field("Task ID", task.id),
+            self._field("Context ID", task.context_id),
+            self._field("State", entry.state_str, "task-value-state"),
+            self._field("Received", entry.received_at.strftime("%Y-%m-%d %H:%M:%S")),
+        )
 
         if task.status:
             if task.status.timestamp:
-                lines.append(f"[b]Last Updated:[/b] {task.status.timestamp}")
+                content.mount(self._field("Last Updated", task.status.timestamp))
             if task.status.message:
                 msg = task.status.message
                 if hasattr(msg, "parts") and msg.parts:
@@ -105,14 +117,15 @@ class TaskDetailPanel(VerticalScroll):
 
                     text = extract_text_from_message_parts(msg.parts)
                     if text:
-                        lines.append(f"[b]Status Message:[/b] {text[:200]}")
+                        content.mount(self._field("Status Message", text[:200]))
 
         if task.artifacts:
-            lines.append("")
-            lines.append(f"[b]Artifacts:[/b] {len(task.artifacts)}")
+            content.mount(
+                Static(f"Artifacts: {len(task.artifacts)}", classes="task-section")
+            )
             for i, artifact in enumerate(task.artifacts):
                 artifact_id = artifact.artifact_id or f"artifact-{i}"
-                lines.append(f"  • {artifact_id}")
+                content.mount(Static(f"  • {artifact_id}", classes="task-item"))
                 if artifact.parts:
                     from a2a_handler.service import extract_text_from_message_parts
 
@@ -121,13 +134,12 @@ class TaskDetailPanel(VerticalScroll):
                         preview = text[:100].replace("\n", " ")
                         if len(text) > 100:
                             preview += "..."
-                        lines.append(f"    {preview}")
+                        content.mount(Static(f"    {preview}", classes="task-preview"))
 
         if task.history:
-            lines.append("")
-            lines.append(f"[b]History:[/b] {len(task.history)} messages")
-
-        content.update("\n".join(lines))
+            content.mount(
+                Static(f"History: {len(task.history)} messages", classes="task-section")
+            )
 
 
 class TasksPanel(Container):

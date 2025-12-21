@@ -258,13 +258,46 @@ AgentMessage {
     color: $text-muted;
 }
 
+#task-detail-content.hidden,
+#task-detail-placeholder.hidden {
+    display: none;
+}
+
 #task-detail-content {
     height: auto;
 }
 
-#task-detail-content.hidden,
-#task-detail-placeholder.hidden {
-    display: none;
+.task-field-row {
+    height: auto;
+    width: auto;
+}
+
+.task-label {
+    color: $text-muted;
+}
+
+.task-value {
+    color: $text;
+}
+
+.task-value-state {
+    color: $accent;
+}
+
+.task-section {
+    height: auto;
+    color: $success;
+    margin-top: 1;
+}
+
+.task-item {
+    height: auto;
+    color: $text;
+}
+
+.task-preview {
+    height: auto;
+    color: $text-muted;
 }
 
 /* Auth Panel */
