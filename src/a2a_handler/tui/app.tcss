@@ -217,6 +217,56 @@ AgentMessage {
     overflow-y: auto;
 }
 
+/* Tasks Panel */
+#tasks-panel {
+    height: 1fr;
+}
+
+#tasks-split {
+    height: 1fr;
+    layout: horizontal;
+}
+
+#tasks-list {
+    width: 1fr;
+    height: 1fr;
+    border: none;
+    scrollbar-size: 1 1;
+}
+
+#tasks-list > ListItem {
+    padding: 0 1;
+}
+
+#tasks-list > ListItem:hover {
+    background: $surface;
+}
+
+#tasks-list > ListItem.-highlight {
+    background: $primary 30%;
+}
+
+#task-detail {
+    width: 2fr;
+    height: 1fr;
+    border-left: solid $secondary;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+#task-detail-placeholder {
+    color: $text-muted;
+}
+
+#task-detail-content {
+    height: auto;
+}
+
+#task-detail-content.hidden,
+#task-detail-placeholder.hidden {
+    display: none;
+}
+
 /* Auth Panel */
 #auth-panel {
     height: auto;

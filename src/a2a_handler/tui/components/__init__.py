@@ -6,6 +6,7 @@ from .contact import ContactPanel
 from .input import InputPanel
 from .logs import LogsPanel
 from .messages import Message, MessagesPanel, TabbedMessagesPanel
+from .tasks import TasksPanel
 
 __all__ = [
     "AgentCardPanel",
@@ -16,4 +17,5 @@ __all__ = [
     "Message",
     "MessagesPanel",
     "TabbedMessagesPanel",
+    "TasksPanel",
 ]
