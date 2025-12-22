@@ -267,6 +267,75 @@ AgentMessage {
     height: auto;
 }
 
+/* Artifacts Panel */
+#artifacts-panel {
+    height: 1fr;
+}
+
+#artifacts-split {
+    height: 1fr;
+    layout: horizontal;
+}
+
+#artifacts-list {
+    width: 1fr;
+    height: 1fr;
+    border: none;
+    scrollbar-size: 1 1;
+}
+
+#artifacts-list > ListItem {
+    padding: 0 1;
+}
+
+#artifacts-list > ListItem:hover {
+    background: $surface;
+}
+
+#artifacts-list > ListItem.-highlight {
+    background: $primary 30%;
+}
+
+#artifact-detail {
+    width: 2fr;
+    height: 1fr;
+    border-left: solid $secondary;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+#artifact-detail-placeholder {
+    color: $text-muted;
+}
+
+#artifact-detail-content.hidden,
+#artifact-detail-placeholder.hidden {
+    display: none;
+}
+
+#artifact-detail-content {
+    height: auto;
+}
+
+.artifact-field-row {
+    height: auto;
+    width: auto;
+}
+
+.artifact-label {
+    color: $text-muted;
+}
+
+.artifact-value {
+    color: $text;
+}
+
+.artifact-content {
+    height: auto;
+    color: $text;
+    padding: 1 0;
+}
+
 .section-heading {
     color: $accent;
     text-style: bold;
