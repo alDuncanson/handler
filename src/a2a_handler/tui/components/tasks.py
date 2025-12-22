@@ -64,9 +64,8 @@ class TaskListItem(ListItem):
 
     def compose(self) -> ComposeResult:
         time_str = self.entry.received_at.strftime("%H:%M:%S")
-        state_str = self.entry.state_str
         task_id_short = self.entry.task_id[:8] if self.entry.task_id else "?"
-        yield Label(f"{time_str}  [{state_str}]  {task_id_short}")
+        yield Label(f"{time_str}  {task_id_short}")
 
 
 class TaskDetailPanel(VerticalScroll):

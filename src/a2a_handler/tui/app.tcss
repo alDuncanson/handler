@@ -228,7 +228,7 @@ AgentMessage {
 }
 
 #tasks-list {
-    width: 1fr;
+    width: 22;
     height: 1fr;
     border: none;
     scrollbar-size: 1 1;
@@ -278,7 +278,7 @@ AgentMessage {
 }
 
 #artifacts-list {
-    width: 1fr;
+    width: 22;
     height: 1fr;
     border: none;
     scrollbar-size: 1 1;
