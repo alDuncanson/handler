@@ -69,6 +69,23 @@ def tui() -> None:
     app.run()
 
 
+@cli.command()
+@click.option("--host", default="localhost", help="Host to bind to", show_default=True)
+@click.option("--port", "-p", default=8001, help="Port to bind to", show_default=True)
+def web(host: str, port: int) -> None:
+    """Serve the TUI as a web application."""
+    from textual_serve.server import Server
+
+    log.info("Starting web server on %s:%d", host, port)
+    server = Server(
+        command="handler tui",
+        host=host,
+        port=port,
+        title="Handler",
+    )
+    server.serve()
+
+
 def main() -> None:
     """Main entry point for the CLI."""
     cli()
