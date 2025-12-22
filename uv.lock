@@ -22,6 +22,7 @@ dependencies = [
     { name = "rich" },
     { name = "rich-click" },
     { name = "textual" },
+    { name = "textual-serve" },
     { name = "uvicorn" },
 ]
 
@@ -45,6 +46,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
     { name = "rich-click", specifier = ">=1.8.0" },
     { name = "textual", specifier = ">=0.47.0" },
+    { name = "textual-serve", specifier = ">=1.1.0" },
     { name = "uvicorn", specifier = ">=0.30.0" },
 ]
 
