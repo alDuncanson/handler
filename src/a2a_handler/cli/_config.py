@@ -74,7 +74,7 @@ click.rich_click.COMMAND_GROUPS = {
         {"name": "Agent Communication", "commands": ["message", "task"]},
         {"name": "Agent Discovery", "commands": ["card"]},
         {"name": "Authentication", "commands": ["auth"]},
-        {"name": "Interfaces", "commands": ["tui", "server"]},
+        {"name": "Interfaces", "commands": ["tui", "web", "server"]},
         {"name": "Utilities", "commands": ["session", "version"]},
     ],
     "handler message": [
