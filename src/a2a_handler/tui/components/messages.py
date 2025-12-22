@@ -12,12 +12,13 @@ from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, TabbedContent, TabPane, Tabs
 
 from a2a_handler.common import get_logger
+from a2a_handler.tui.components.artifacts import ArtifactsPanel
 from a2a_handler.tui.components.auth import AuthPanel
 from a2a_handler.tui.components.logs import LogsPanel
 from a2a_handler.tui.components.tasks import TasksPanel
 
 if TYPE_CHECKING:
-    from a2a.types import Task
+    from a2a.types import Artifact, Task
 
     from a2a_handler.auth import AuthCredentials
     from a2a_handler.service import SendResult
@@ -140,6 +141,7 @@ class TabbedMessagesPanel(Container):
         Binding("ctrl+u", "scroll_half_up", "½ Page ↑", show=True),
         Binding("y", "copy_task_id", "Copy ID", show=False),
         Binding("Y", "copy_context_id", "Copy Ctx", show=False),
+        Binding("y", "copy_artifact_id", "Copy ID", show=False),
     ]
 
     can_focus = True
@@ -148,13 +150,15 @@ class TabbedMessagesPanel(Container):
         """Show/hide actions based on active tab context."""
         active = self._get_active_tab_id()
         if action in ("scroll_down", "scroll_up"):
-            return active in ("messages-tab", "logs-tab", "tasks-tab")
+            return active in ("messages-tab", "logs-tab", "tasks-tab", "artifacts-tab")
         if action in ("scroll_half_down", "scroll_half_up"):
             return active in ("messages-tab", "logs-tab")
         if action in ("scroll_left", "scroll_right"):
             return active == "logs-tab"
         if action in ("copy_task_id", "copy_context_id"):
             return active == "tasks-tab"
+        if action in ("copy_artifact_id",):
+            return active == "artifacts-tab"
         return True
 
     def compose(self) -> ComposeResult:
@@ -163,6 +167,8 @@ class TabbedMessagesPanel(Container):
                 yield ChatScrollContainer(id="chat")
             with TabPane("Tasks", id="tasks-tab"):
                 yield TasksPanel(id="tasks-panel")
+            with TabPane("Artifacts", id="artifacts-tab"):
+                yield ArtifactsPanel(id="artifacts-panel")
             with TabPane("Auth", id="auth-tab"):
                 yield AuthPanel(id="auth-panel")
             with TabPane("Logs", id="logs-tab"):
@@ -189,6 +195,9 @@ class TabbedMessagesPanel(Container):
 
     def _get_tasks_panel(self) -> TasksPanel:
         return self.query_one("#tasks-panel", TasksPanel)
+
+    def _get_artifacts_panel(self) -> ArtifactsPanel:
+        return self.query_one("#artifacts-panel", ArtifactsPanel)
 
     def add_message(self, role: str, content: str) -> None:
         logger.debug("Adding %s message: %s", role, content[:50])
@@ -252,6 +261,18 @@ class TabbedMessagesPanel(Container):
         tasks_panel = self._get_tasks_panel()
         tasks_panel.update_task(task)
 
+    def add_artifact(self, artifact: "Artifact", task_id: str, context_id: str) -> None:
+        """Add an artifact to the artifacts panel."""
+        artifacts_panel = self._get_artifacts_panel()
+        artifacts_panel.add_artifact(artifact, task_id, context_id)
+
+    def update_artifact(
+        self, artifact: "Artifact", task_id: str, context_id: str
+    ) -> None:
+        """Update an existing artifact or add if new."""
+        artifacts_panel = self._get_artifacts_panel()
+        artifacts_panel.update_artifact(artifact, task_id, context_id)
+
     def _get_active_tab_id(self) -> str:
         tabbed_content = self.query_one("#messages-tabs", TabbedContent)
         return tabbed_content.active
@@ -282,6 +303,8 @@ class TabbedMessagesPanel(Container):
             self._get_logs_panel().scroll_down()
         elif active == "tasks-tab":
             self._get_tasks_panel().action_cursor_down()
+        elif active == "artifacts-tab":
+            self._get_artifacts_panel().action_cursor_down()
 
     def action_scroll_up(self) -> None:
         active = self._get_active_tab_id()
@@ -291,6 +314,8 @@ class TabbedMessagesPanel(Container):
             self._get_logs_panel().scroll_up()
         elif active == "tasks-tab":
             self._get_tasks_panel().action_cursor_up()
+        elif active == "artifacts-tab":
+            self._get_artifacts_panel().action_cursor_up()
 
     def action_scroll_left(self) -> None:
         active = self._get_active_tab_id()
@@ -333,3 +358,10 @@ class TabbedMessagesPanel(Container):
         if active == "tasks-tab":
             tasks_panel = self._get_tasks_panel()
             tasks_panel.action_copy_context_id()
+
+    def action_copy_artifact_id(self) -> None:
+        """Copy the selected artifact ID to clipboard."""
+        active = self._get_active_tab_id()
+        if active == "artifacts-tab":
+            artifacts_panel = self._get_artifacts_panel()
+            artifacts_panel.action_copy_artifact_id()

@@ -241,6 +241,14 @@ class HandlerTUI(App[Any]):
             if send_result.task:
                 messages_panel.update_task(send_result.task)
 
+                if send_result.task.artifacts:
+                    for artifact in send_result.task.artifacts:
+                        messages_panel.update_artifact(
+                            artifact,
+                            send_result.task_id or "",
+                            self.current_context_id or "",
+                        )
+
         except Exception as error:
             logger.error("Error sending message: %s", error, exc_info=True)
             messages_panel.add_system_message(f"Error: {error!s}")
