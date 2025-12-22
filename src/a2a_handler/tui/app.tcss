@@ -217,6 +217,117 @@ AgentMessage {
     overflow-y: auto;
 }
 
+/* Tasks Panel */
+#tasks-panel {
+    height: 1fr;
+}
+
+#tasks-split {
+    height: 1fr;
+    layout: horizontal;
+}
+
+#tasks-list {
+    width: 1fr;
+    height: 1fr;
+    border: none;
+    scrollbar-size: 1 1;
+}
+
+#tasks-list > ListItem {
+    padding: 0 1;
+}
+
+#tasks-list > ListItem:hover {
+    background: $surface;
+}
+
+#tasks-list > ListItem.-highlight {
+    background: $primary 30%;
+}
+
+#task-detail {
+    width: 2fr;
+    height: 1fr;
+    border-left: solid $secondary;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+#task-detail-placeholder {
+    color: $text-muted;
+}
+
+#task-detail-content.hidden,
+#task-detail-placeholder.hidden {
+    display: none;
+}
+
+#task-detail-content {
+    height: auto;
+}
+
+.section-heading {
+    color: $accent;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+.task-field-row {
+    height: auto;
+    width: auto;
+}
+
+.task-label {
+    color: $text-muted;
+}
+
+.task-value {
+    color: $text;
+}
+
+.task-value-state {
+    color: $accent;
+}
+
+.artifact-id {
+    color: $text;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.artifact-preview {
+    height: auto;
+    color: $text-muted;
+    padding-left: 2;
+}
+
+.task-item {
+    height: auto;
+    color: $text;
+}
+
+.history-item {
+    height: auto;
+    margin-top: 1;
+}
+
+.history-role-user {
+    color: $primary;
+    text-style: bold;
+}
+
+.history-role-agent {
+    color: $success;
+    text-style: bold;
+}
+
+.history-message {
+    color: $text;
+    padding-left: 2;
+}
+
 /* Auth Panel */
 #auth-panel {
     height: auto;

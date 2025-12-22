@@ -14,8 +14,11 @@ from textual.widgets import Static, TabbedContent, TabPane, Tabs
 from a2a_handler.common import get_logger
 from a2a_handler.tui.components.auth import AuthPanel
 from a2a_handler.tui.components.logs import LogsPanel
+from a2a_handler.tui.components.tasks import TasksPanel
 
 if TYPE_CHECKING:
+    from a2a.types import Task
+
     from a2a_handler.auth import AuthCredentials
     from a2a_handler.service import SendResult
 
@@ -135,6 +138,8 @@ class TabbedMessagesPanel(Container):
         Binding("ctrl+right", "scroll_right", "Scroll Right", show=False),
         Binding("ctrl+d", "scroll_half_down", "½ Page ↓", show=True),
         Binding("ctrl+u", "scroll_half_up", "½ Page ↑", show=True),
+        Binding("y", "copy_task_id", "Copy ID", show=False),
+        Binding("Y", "copy_context_id", "Copy Ctx", show=False),
     ]
 
     can_focus = True
@@ -142,16 +147,22 @@ class TabbedMessagesPanel(Container):
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Show/hide actions based on active tab context."""
         active = self._get_active_tab_id()
-        if action in ("scroll_down", "scroll_up", "scroll_half_down", "scroll_half_up"):
+        if action in ("scroll_down", "scroll_up"):
+            return active in ("messages-tab", "logs-tab", "tasks-tab")
+        if action in ("scroll_half_down", "scroll_half_up"):
             return active in ("messages-tab", "logs-tab")
         if action in ("scroll_left", "scroll_right"):
             return active == "logs-tab"
+        if action in ("copy_task_id", "copy_context_id"):
+            return active == "tasks-tab"
         return True
 
     def compose(self) -> ComposeResult:
         with TabbedContent(id="messages-tabs"):
             with TabPane("Messages", id="messages-tab"):
                 yield ChatScrollContainer(id="chat")
+            with TabPane("Tasks", id="tasks-tab"):
+                yield TasksPanel(id="tasks-panel")
             with TabPane("Auth", id="auth-tab"):
                 yield AuthPanel(id="auth-panel")
             with TabPane("Logs", id="logs-tab"):
@@ -175,6 +186,9 @@ class TabbedMessagesPanel(Container):
 
     def _get_auth_panel(self) -> AuthPanel:
         return self.query_one("#auth-panel", AuthPanel)
+
+    def _get_tasks_panel(self) -> TasksPanel:
+        return self.query_one("#tasks-panel", TasksPanel)
 
     def add_message(self, role: str, content: str) -> None:
         logger.debug("Adding %s message: %s", role, content[:50])
@@ -228,6 +242,16 @@ class TabbedMessagesPanel(Container):
         auth_panel = self._get_auth_panel()
         return auth_panel.get_credentials()
 
+    def add_task(self, task: "Task") -> None:
+        """Add a task to the tasks panel."""
+        tasks_panel = self._get_tasks_panel()
+        tasks_panel.add_task(task)
+
+    def update_task(self, task: "Task") -> None:
+        """Update an existing task or add if new."""
+        tasks_panel = self._get_tasks_panel()
+        tasks_panel.update_task(task)
+
     def _get_active_tab_id(self) -> str:
         tabbed_content = self.query_one("#messages-tabs", TabbedContent)
         return tabbed_content.active
@@ -237,6 +261,7 @@ class TabbedMessagesPanel(Container):
         try:
             tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
             tabs_widget.action_previous_tab()
+            self.focus()
         except Exception:
             pass
 
@@ -245,6 +270,7 @@ class TabbedMessagesPanel(Container):
         try:
             tabs_widget = self.query_one("#messages-tabs Tabs", Tabs)
             tabs_widget.action_next_tab()
+            self.focus()
         except Exception:
             pass
 
@@ -254,6 +280,8 @@ class TabbedMessagesPanel(Container):
             self._get_chat_container().scroll_down()
         elif active == "logs-tab":
             self._get_logs_panel().scroll_down()
+        elif active == "tasks-tab":
+            self._get_tasks_panel().action_cursor_down()
 
     def action_scroll_up(self) -> None:
         active = self._get_active_tab_id()
@@ -261,6 +289,8 @@ class TabbedMessagesPanel(Container):
             self._get_chat_container().scroll_up()
         elif active == "logs-tab":
             self._get_logs_panel().scroll_up()
+        elif active == "tasks-tab":
+            self._get_tasks_panel().action_cursor_up()
 
     def action_scroll_left(self) -> None:
         active = self._get_active_tab_id()
@@ -289,3 +319,17 @@ class TabbedMessagesPanel(Container):
         elif active == "logs-tab":
             panel = self._get_logs_panel()
             panel.scroll_relative(y=-(panel.size.height // 2))
+
+    def action_copy_task_id(self) -> None:
+        """Copy the selected task ID to clipboard."""
+        active = self._get_active_tab_id()
+        if active == "tasks-tab":
+            tasks_panel = self._get_tasks_panel()
+            tasks_panel.action_copy_task_id()
+
+    def action_copy_context_id(self) -> None:
+        """Copy the selected context ID to clipboard."""
+        active = self._get_active_tab_id()
+        if active == "tasks-tab":
+            tasks_panel = self._get_tasks_panel()
+            tasks_panel.action_copy_context_id()

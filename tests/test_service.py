@@ -223,3 +223,230 @@ class TestTerminalStates:
     def test_working_is_not_terminal(self):
         """Test that working is not a terminal state."""
         assert TaskState.working not in TERMINAL_TASK_STATES
+
+
+class TestSendResultNeedsAuth:
+    """Tests for SendResult.needs_auth property."""
+
+    def test_needs_auth_when_auth_required(self):
+        """Test needs_auth returns True for auth_required state."""
+        result = SendResult(task=_make_task(TaskState.auth_required))
+        assert result.needs_auth is True
+
+    def test_needs_auth_when_working(self):
+        """Test needs_auth returns False for working state."""
+        result = SendResult(task=_make_task(TaskState.working))
+        assert result.needs_auth is False
+
+    def test_needs_auth_when_no_state(self):
+        """Test needs_auth returns False when no task or message."""
+        result = SendResult()
+        assert result.needs_auth is False
+
+
+class TestStreamEventStatusFields:
+    """Additional tests for StreamEvent with TaskStatusUpdateEvent."""
+
+    def test_context_id_from_status_event(self):
+        """Test context_id derived from status update event."""
+        from a2a.types import TaskStatusUpdateEvent, TaskStatus
+
+        status_event = TaskStatusUpdateEvent(
+            task_id="task-123",
+            context_id="ctx-status",
+            final=False,
+            status=TaskStatus(state=TaskState.working),
+        )
+        event = StreamEvent(event_type="status", status=status_event)
+        assert event.context_id == "ctx-status"
+
+    def test_task_id_from_status_event(self):
+        """Test task_id derived from status update event."""
+        from a2a.types import TaskStatusUpdateEvent, TaskStatus
+
+        status_event = TaskStatusUpdateEvent(
+            task_id="task-from-status",
+            context_id="ctx-123",
+            final=False,
+            status=TaskStatus(state=TaskState.working),
+        )
+        event = StreamEvent(event_type="status", status=status_event)
+        assert event.task_id == "task-from-status"
+
+    def test_state_from_status_event(self):
+        """Test state derived from status update event."""
+        from a2a.types import TaskStatusUpdateEvent, TaskStatus
+
+        status_event = TaskStatusUpdateEvent(
+            task_id="task-123",
+            context_id="ctx-123",
+            final=False,
+            status=TaskStatus(state=TaskState.working),
+        )
+        event = StreamEvent(event_type="status", status=status_event)
+        assert event.state == TaskState.working
+
+
+class TestStreamEventArtifact:
+    """Tests for StreamEvent with artifact events."""
+
+    def test_context_id_from_artifact(self):
+        """Test context_id derived from artifact event."""
+        from a2a.types import TaskArtifactUpdateEvent, Artifact
+
+        artifact_event = TaskArtifactUpdateEvent(
+            task_id="task-123",
+            context_id="ctx-artifact",
+            artifact=Artifact(
+                artifact_id="art-1",
+                parts=[Part(root=TextPart(text="text"))],
+            ),
+        )
+        event = StreamEvent(event_type="artifact", artifact=artifact_event)
+        assert event.context_id == "ctx-artifact"
+
+    def test_task_id_from_artifact(self):
+        """Test task_id derived from artifact event."""
+        from a2a.types import TaskArtifactUpdateEvent, Artifact
+
+        artifact_event = TaskArtifactUpdateEvent(
+            task_id="task-artifact",
+            context_id="ctx-123",
+            artifact=Artifact(
+                artifact_id="art-1",
+                parts=[Part(root=TextPart(text="text"))],
+            ),
+        )
+        event = StreamEvent(event_type="artifact", artifact=artifact_event)
+        assert event.task_id == "task-artifact"
+
+
+class TestTaskResultState:
+    """Additional tests for TaskResult state handling."""
+
+    def test_state_default_when_unknown(self):
+        """Test state returns unknown when task has unknown state."""
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.unknown),
+        )
+        result = TaskResult(task=task)
+        assert result.state == TaskState.unknown
+
+
+class TestExtractTextFromTask:
+    """Tests for extract_text_from_task function."""
+
+    def test_extract_from_task_with_artifacts(self):
+        """Test extracting text from task artifacts."""
+        from a2a_handler.service import extract_text_from_task
+        from a2a.types import Artifact
+
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.completed),
+            artifacts=[
+                Artifact(
+                    artifact_id="art-1",
+                    parts=[Part(root=TextPart(text="Artifact text"))],
+                )
+            ],
+        )
+
+        result = extract_text_from_task(task)
+        assert result == "Artifact text"
+
+    def test_extract_from_task_with_history_no_artifacts(self):
+        """Test extracting text from task history when no artifacts."""
+        from a2a_handler.service import extract_text_from_task
+
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.completed),
+            artifacts=[],
+            history=[
+                Message(
+                    message_id="msg-1",
+                    role=Role.agent,
+                    parts=[Part(root=TextPart(text="History text"))],
+                    context_id="ctx-123",
+                )
+            ],
+        )
+
+        result = extract_text_from_task(task)
+        assert result == "History text"
+
+    def test_extract_prefers_artifacts_over_history(self):
+        """Test that artifacts take precedence over history."""
+        from a2a_handler.service import extract_text_from_task
+        from a2a.types import Artifact
+
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.completed),
+            artifacts=[
+                Artifact(
+                    artifact_id="art-1",
+                    parts=[Part(root=TextPart(text="Artifact text"))],
+                )
+            ],
+            history=[
+                Message(
+                    message_id="msg-1",
+                    role=Role.agent,
+                    parts=[Part(root=TextPart(text="History text"))],
+                    context_id="ctx-123",
+                )
+            ],
+        )
+
+        result = extract_text_from_task(task)
+        assert result == "Artifact text"
+        assert "History text" not in result
+
+    def test_extract_ignores_user_messages_in_history(self):
+        """Test that user messages in history are ignored."""
+        from a2a_handler.service import extract_text_from_task
+
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.completed),
+            artifacts=[],
+            history=[
+                Message(
+                    message_id="msg-1",
+                    role=Role.user,
+                    parts=[Part(root=TextPart(text="User text"))],
+                    context_id="ctx-123",
+                ),
+                Message(
+                    message_id="msg-2",
+                    role=Role.agent,
+                    parts=[Part(root=TextPart(text="Agent text"))],
+                    context_id="ctx-123",
+                ),
+            ],
+        )
+
+        result = extract_text_from_task(task)
+        assert result == "Agent text"
+        assert "User text" not in result
+
+    def test_extract_from_empty_task(self):
+        """Test extracting from task with no artifacts or history."""
+        from a2a_handler.service import extract_text_from_task
+
+        task = Task(
+            id="task-123",
+            context_id="ctx-123",
+            status=TaskStatus(state=TaskState.completed),
+        )
+
+        result = extract_text_from_task(task)
+        assert result == ""

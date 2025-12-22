@@ -238,6 +238,9 @@ class HandlerTUI(App[Any]):
 
             messages_panel.add_agent_message(send_result)
 
+            if send_result.task:
+                messages_panel.update_task(send_result.task)
+
         except Exception as error:
             logger.error("Error sending message: %s", error, exc_info=True)
             messages_panel.add_system_message(f"Error: {error!s}")
