@@ -102,6 +102,14 @@ Launch the terminal user interface:
 handler tui
 ```
 
+### Web
+
+Serve the TUI as a web application:
+
+```bash
+handler web
+```
+
 ### Agent Cards
 
 Fetch an agent's card:
