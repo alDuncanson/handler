@@ -28,8 +28,33 @@ def mcp(transport: TransportType) -> None:
     server from any MCP-compatible client (like Claude Desktop, Cursor, etc.).
 
     The server provides tools for:
-    - Validating A2A agent cards
-    - More capabilities coming soon...
+
+    \b
+    Card Tools:
+    - validate_agent_card: Validate an agent card from URL or file
+    - get_agent_card: Retrieve an agent's full card details
+
+    \b
+    Message Tools:
+    - send_message: Send messages to agents with session/auth support
+
+    \b
+    Task Tools:
+    - get_task: Get task status and details
+    - cancel_task: Cancel a running task
+    - set_task_notification: Configure push notification webhooks
+    - get_task_notification: Get push notification config
+
+    \b
+    Session Tools:
+    - list_sessions: List all saved sessions
+    - get_session_info: Get session for a specific agent
+    - clear_session_data: Clear saved session state
+
+    \b
+    Auth Tools:
+    - set_agent_credentials: Save bearer token or API key
+    - clear_agent_credentials: Remove saved credentials
 
     Example configuration for Claude Desktop (claude_desktop_config.json):
 
