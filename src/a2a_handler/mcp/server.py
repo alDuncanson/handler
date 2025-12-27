@@ -10,6 +10,8 @@ from a2a_handler.common import get_logger
 from a2a_handler.service import A2AService
 from a2a_handler.session import (
     clear_credentials as session_clear_credentials,
+)
+from a2a_handler.session import (
     clear_session,
     get_credentials,
     get_session,
@@ -49,17 +51,14 @@ def _resolve_credentials(
 def create_mcp_server() -> FastMCP:
     """Create and configure the MCP server with A2A tools."""
     mcp = FastMCP(
-        "Handler",
+        name="Handler",
         instructions=(
             "Handler exposes A2A (Agent-to-Agent) protocol capabilities. "
             "Use these tools to interact with A2A agents, validate agent cards, "
             "and discover agent capabilities."
         ),
+        website_url="https://github.com/alDuncanson/handler",
     )
-
-    # =========================================================================
-    # Card Tools
-    # =========================================================================
 
     @mcp.tool()
     async def validate_agent_card(
@@ -150,10 +149,6 @@ def create_mcp_server() -> FastMCP:
 
             return card.model_dump(exclude_none=True)
 
-    # =========================================================================
-    # Message Tools
-    # =========================================================================
-
     @mcp.tool()
     async def send_message(
         agent_url: str,
@@ -216,10 +211,6 @@ def create_mcp_server() -> FastMCP:
                 "needs_input": result.needs_input,
                 "needs_auth": result.needs_auth,
             }
-
-    # =========================================================================
-    # Task Tools
-    # =========================================================================
 
     @mcp.tool()
     async def get_task(
@@ -395,10 +386,6 @@ def create_mcp_server() -> FastMCP:
 
             return result
 
-    # =========================================================================
-    # Session Tools
-    # =========================================================================
-
     @mcp.tool()
     async def list_sessions() -> dict:
         """List all saved sessions.
@@ -481,10 +468,6 @@ def create_mcp_server() -> FastMCP:
             logger.info("Clearing all sessions")
             clear_session()
             return {"cleared": "All sessions"}
-
-    # =========================================================================
-    # Auth Tools
-    # =========================================================================
 
     @mcp.tool()
     async def set_agent_credentials(
